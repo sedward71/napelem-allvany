@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unistrut 41x41 Napelemes Motorbeálló - 3D CAD Megjelenítő</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Reliable Three.js r128 and OrbitControls via standard script tags -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0b1120;
+            font-family: 'Inter', sans-serif;
+            color: #f1f5f9;
+            user-select: none;
+        }
+        #canvas-container {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.86);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.65);
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom slim scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.6);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.8);
+        }
+        /* Floating 3D HTML Labels */
+        .cad-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            white-space: nowrap;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 5px;
+            background: rgba(15, 23, 42, 0.88);
+            border: 1px solid rgba(56, 189, 248, 0.5);
+            color: #e0f2fe;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            z-index: 5;
+        }
+        .cad-label.compass {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-color: rgba(251, 191, 36, 0.7);
+            color: #fde68a;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D WebGL Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Floating 3D Dimension Labels Container -->
+    <div id="labels-container" class="fixed inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+    <!-- TOP BAR: Title & Collapsible Camera Presets -->
+    <header class="fixed top-3 left-3 right-3 z-20 flex flex-wrap items-start justify-between gap-2 pointer-events-none">
+        <!-- Brand / Title Card with Collapse Button -->
+        <div class="glass-panel rounded-xl pointer-events-auto transition-all duration-200 max-w-xl">
+            <div class="px-3.5 py-2.5 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 font-bold mono text-sm">
+                        CAD
+                    </div>
+                    <div>
+                        <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                            <span>Unistrut 41x41 Napelemes Motorbeálló (2x3)</span>
+                            <span class="text-[10px] mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">25° Tető / 15° Terep</span>
+                        </h1>
+                        <p id="header-subtitle" class="text-[11px] text-slate-400">6x DAH Solar 1762x1134 - Opcionális OSB-3 falak - M10/M8 Csomópontok</p>
+                    </div>
+                </div>
+                <button onclick="togglePanel('presets-body', 'presets-toggle-btn')" id="presets-toggle-btn" title="Kamera gombok összecsukása/kinyitása" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 flex items-center justify-center font-bold mono text-sm transition">
+                    -
+                </button>
+            </div>
+            <!-- Collapsible Camera Presets Body -->
+            <div id="presets-body" class="px-3.5 pb-3 pt-1 border-t border-slate-700/70 flex flex-wrap gap-1.5">
+                <button onclick="setCameraPreset('overview')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30 transition">
+                    Teljes nézet
+                </button>
+                <button onclick="setCameraPreset('photo')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
+                    Helyszíni fotó nézet (rajz3)
+                </button>
+                <button onclick="setCameraPreset('joint25')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                    25° Csuklós tetőcsomópont
+                </button>
+                <button onclick="setCameraPreset('overlap')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                    Dupla láb 400mm átfedés
+                </button>
+                <button onclick="setCameraPreset('epdm')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                    Alusín + EPDM keresztezés
+                </button>
+                <button onclick="setCameraPreset('osb_window')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition">
+                    OSB fal & Nyitható ablak
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- LEFT COLLAPSIBLE PANEL: Exploded View, Window Controls & Layer Checkboxes -->
+    <aside class="fixed top-28 left-3 z-20 w-80 max-w-[calc(100vw-24px)] glass-panel rounded-xl overflow-hidden transition-all duration-200">
+        <!-- Panel Header with Collapse Toggle -->
+        <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-700/80 flex items-center justify-between cursor-pointer" onclick="togglePanel('left-panel-body', 'left-toggle-btn')">
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Vezérlőpult & Rétegek</h2>
+            </div>
+            <button id="left-toggle-btn" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 flex items-center justify-center font-bold mono text-xs">
+                -
+            </button>
+        </div>
+
+        <!-- Collapsible Body -->
+        <div id="left-panel-body" class="p-3.5 max-h-[calc(100vh-175px)] overflow-y-auto space-y-3.5">
+            <!-- Exploded View Slider -->
+            <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-3">
+                <div class="flex justify-between items-center mb-1">
+                    <label for="explode-slider" class="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                        <span>Robbantott ábra</span>
+                    </label>
+                    <span id="explode-val" class="text-xs mono bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">0%</span>
+                </div>
+                <input id="explode-slider" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-amber-500">
+                <p class="text-[11px] text-slate-400 mt-1">Húzd el a csomópontok, OSB falak és M10/M8 csavarok szétnyitásához!</p>
+            </div>
+
+            <!-- Interactive Folding / Opening Windows Control -->
+            <div class="bg-slate-900/90 border border-emerald-500/40 rounded-lg p-3 space-y-2">
+                <div class="flex justify-between items-center">
+                    <label for="window-slider" class="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <span>Ablak nyitása (Északi fal)</span>
+                    </label>
+                    <span id="window-val" class="text-xs mono bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">45%</span>
+                </div>
+                <input id="window-slider" type="range" min="0" max="100" value="45" class="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-emerald-500">
+                <div class="flex items-center justify-between gap-1 pt-0.5">
+                    <span class="text-[11px] text-slate-400">Nyitási mód:</span>
+                    <button id="window-mode-btn" onclick="toggleWindowMode()" class="px-2 py-1 text-[11px] font-medium rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition">
+                        Harmonika + Bukó
+                    </button>
+                </div>
+            </div>
+
+            <!-- Layer Visibility Checkboxes -->
+            <div class="space-y-1 text-xs">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 pb-1">Rétegek Ki/Be Kapcsolása:</div>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-panels" checked onchange="updateLayers()" class="mt-0.5 rounded accent-sky-500">
+                    <div>
+                        <div class="font-medium text-slate-200">1. Napelemek és EPDM T-gumik</div>
+                        <div class="text-[11px] text-slate-400">6 db DAH Solar 1762x1134x30 + vízzárás</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-rails" checked onchange="updateLayers()" class="mt-0.5 rounded accent-sky-500">
+                    <div>
+                        <div class="font-medium text-slate-200">2. Alumínium sínek és leszorítók</div>
+                        <div class="text-[11px] text-slate-400">4x 3500mm 40x40 alusín + 16 leszorító</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition border border-emerald-500/30 bg-emerald-500/5">
+                    <input type="checkbox" id="layer-osb" onchange="updateLayers()" class="mt-0.5 rounded accent-emerald-500">
+                    <div>
+                        <div class="font-medium text-emerald-300">3. Opcionális OSB-3 oldalfalak (alapból KI)</div>
+                        <div class="text-[11px] text-slate-400">Földig érő zárt nyugati fal + északi fal ablakkal (Kelet szabad!)</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-unistrut" checked onchange="updateLayers()" class="mt-0.5 rounded accent-sky-500">
+                    <div>
+                        <div class="font-medium text-slate-200">4. C-profil főváz (Unistrut 41x41x2.5)</div>
+                        <div class="text-[11px] text-slate-400">Valós U/C szelvény, kifelé néző résekkel az OSB-hez</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-fasteners" checked onchange="updateLayers()" class="mt-0.5 rounded accent-amber-500">
+                    <div>
+                        <div class="font-medium text-amber-300">5. Csomópontok, Csuklók és M10/M8 Csavarok</div>
+                        <div class="text-[11px] text-slate-400">Élénk narancs/arany színkóddal kiemelve</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-foundation" checked onchange="updateLayers()" class="mt-0.5 rounded accent-sky-500">
+                    <div>
+                        <div class="font-medium text-slate-200">6. Zsalukő alapok és 15°-os terep</div>
+                        <div class="text-[11px] text-slate-400">6× (járdalap + 3 db zsalukő) + lejtős talaj</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-context" checked onchange="updateLayers()" class="mt-0.5 rounded accent-emerald-500">
+                    <div>
+                        <div class="font-medium text-emerald-300">7. Helyszíni környezet (Melléképület & Fák)</div>
+                        <div class="text-[11px] text-slate-400">Ferde tetejű fekete épület, hátsó tuják, hordó</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <input type="checkbox" id="layer-dims" checked onchange="updateLayers()" class="mt-0.5 rounded accent-sky-500">
+                    <div>
+                        <div class="font-medium text-sky-300">8. 3D Méretvonalak és Égtájak</div>
+                        <div class="text-[11px] text-slate-400">Magasságok, szögek (15°, 25°) és tengelyek</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </aside>
+
+    <!-- RIGHT COLLAPSIBLE PANEL: Interactive Raycast Part Inspector -->
+    <aside class="fixed top-28 right-3 z-20 w-80 max-w-[calc(100vw-24px)] glass-panel rounded-xl overflow-hidden transition-all duration-200">
+        <!-- Header with Collapse Button -->
+        <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-700/80 flex items-center justify-between cursor-pointer" onclick="togglePanel('inspector-body', 'right-toggle-btn')">
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Elem Vizsgáló (Inspector)</h2>
+            </div>
+            <button id="right-toggle-btn" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 flex items-center justify-center font-bold mono text-xs">
+                -
+            </button>
+        </div>
+
+        <!-- Collapsible Inspector Body -->
+        <div id="inspector-body" class="p-4 max-h-[calc(100vh-175px)] overflow-y-auto space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+                <span id="insp-category" class="text-[11px] font-semibold uppercase tracking-wider text-sky-400 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded">
+                    Kattints egy 3D elemre!
+                </span>
+                <button onclick="clearSelection()" class="text-[11px] text-slate-400 hover:text-white underline">Alaphelyzet</button>
+            </div>
+
+            <h3 id="insp-title" class="text-sm font-bold text-white leading-snug">
+                Unistrut 2x3 Napelemes Motorbeálló (6 paneles)
+            </h3>
+
+            <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-2.5 space-y-1">
+                <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Pontos Méret és Geometriai Adatok:</div>
+                <div id="insp-dims" class="mono text-amber-300 text-xs">
+                    Szélesség: 3442 mm - Mélység: 3544 mm - Tető: 25.0°
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 border border-cyan-500/30 rounded-lg p-2.5 space-y-1">
+                <div class="text-[10px] uppercase tracking-wider text-cyan-400 font-semibold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                    C-Profil Nyitott Csatorna (Rés) Iránya:
+                </div>
+                <div id="insp-slot" class="text-slate-200 leading-relaxed">
+                    A türkiz/világoskék sáv jelöli a 41x41-es profil 22 mm-es nyitott rését. A szélső profilok rése kifelé néz az opcionális OSB lapok süllyesztett M8-as rögzítéséhez.
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 border border-amber-500/30 rounded-lg p-2.5 space-y-1">
+                <div class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold">Csomóponti Kötőelemek és Csavarozás:</div>
+                <div id="insp-fasteners" class="text-slate-200 leading-relaxed">
+                    M10x25 A2 hatlapfejű csavarok + M10 rugós csatornaanyák a teherhordó vázhoz.
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 border border-cyan-500/30 rounded-lg p-2.5 space-y-1">
+                <div class="text-[10px] uppercase tracking-wider text-cyan-400 font-semibold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                    C-Profil Nyitott Csatorna (Rés) Iránya:
+                </div>
+                <div id="insp-slot" class="text-slate-200 leading-relaxed">
+                    A türkiz/világoskék sáv jelöli a 41×41-es profil 22 mm-es nyitott rését. A szélső profilok rése kifelé néz az opcionális OSB lapok süllyesztett M8-as rögzítéséhez.
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 border border-amber-500/30 rounded-lg p-2.5 space-y-1">
+                <div class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold">Csomóponti Kötőelemek és Csavarozás:</div>
+                <div id="insp-fasteners" class="text-slate-200 leading-relaxed">
+                    M10×25 A2 hatlapfejű csavarok + M10 rugós csatornaanyák a teherhordó vázhoz; M8×35 A2 lencsefejű csavarok + EPDM alátétek az OSB burkolathoz.
+                </div>
+            </div>
+
+            <div class="bg-slate-900/70 border border-slate-800 rounded-lg p-2.5 space-y-1">
+                <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Műszaki Megjegyzés:</div>
+                <div id="insp-notes" class="text-slate-300 leading-relaxed text-[11px]">
+                    Bármelyik 3D alkatrészre (láb, csonk, 25°-os csukló, karpánt, szarufa, OSB fal, nyitható ablak, napelem) kattintva itt jelenik meg a részletes csomóponti leírás.
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- BOTTOM HELP PILL -->
+    <div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 glass-panel px-4 py-1.5 rounded-full text-[11px] text-slate-300 pointer-events-none hidden md:flex items-center gap-4">
+        <span>🖱️ <b>Bal klikk + húzás:</b> Forgatás</span>
+        <span>🖱️ <b>Jobb klikk + húzás:</b> Mozgatás (Pan)</span>
+        <span>🖱️ <b>Görgő:</b> Ráközelítés (Zoom)</span>
+        <span>👆 <b>Kattintás elemre:</b> Csomópont vizsgálata</span>
+    </div>
+
+    <script>
+        // ============================================================================
+        // UI COLLAPSE / EXPAND HELPER
+        // ============================================================================
+        function togglePanel(bodyId, btnId) {
+            const bodyEl = document.getElementById(bodyId);
+            const btnEl = document.getElementById(btnId);
+            if (!bodyEl || !btnEl) return;
+            const isHidden = bodyEl.classList.toggle('hidden');
+            btnEl.textContent = isHidden ? '+' : '-';
+        }
+
+        // ============================================================================
+        // GLOBAL STATE & GEOMETRY CONSTANTS (1 unit = 1 meter, 1 mm = 0.001 m)
+        // ============================================================================
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let selectableMeshes = [];
+        let selectedMesh = null;
+        let explodeItems = [];
+        let labelItems = [];
+        let interactiveWindows = [];
+        let windowOpenMode = 'both'; // 'both' | 'bifold' | 'tilt'
+
+        const camAnim = {
+            active: false,
+            startPos: new THREE.Vector3(),
+            endPos: new THREE.Vector3(),
+            startTarget: new THREE.Vector3(),
+            endTarget: new THREE.Vector3(),
+            progress: 0
+        };
+
+        const layerGroups = {
+            panels: new THREE.Group(),
+            rails: new THREE.Group(),
+            osb: new THREE.Group(),
+            unistrut: new THREE.Group(),
+            fasteners: new THREE.Group(),
+            foundation: new THREE.Group(),
+            context: new THREE.Group(),
+            dims: new THREE.Group()
+        };
+
+        const SLOPE_DEG = 15.0;
+        const SLOPE_RAD = THREE.MathUtils.degToRad(SLOPE_DEG);
+        const PITCH_DEG = 25.0;
+        const PITCH_RAD = THREE.MathUtils.degToRad(PITCH_DEG);
+
+        const GEO = {
+            colX: [-1.500, 0.000, 1.500], // 1500 mm spacing (3000 mm total width)
+            zSouth: 1.250,                // Front (South) legs at Z = +1250 mm
+            zNorth: -1.250,               // Back (North) legs at Z = -1250 mm (2500 mm horizontal span)
+            yBaseSouth: 0.000,            // South base elevation Y = 0 mm
+            yBaseNorth: 0.670,            // North base elevation Y = +670 mm (2500 * tan(15°))
+            slabH: 0.050,                 // 400x400x50 mm concrete paving slab
+            blockH: 0.750,                // 3x 400x200x250 mm concrete zsalukő = 750 mm
+            legH_South: 2.100,            // 2100 mm from paving slab top to rafter pivot
+            legH_North: 2.596,            // 2596 mm from paving slab top to rafter pivot (670+2596 = 3266 mm above slab level)
+            cSize: 0.041,                 // 41x41x2.5 mm Unistrut C-profile
+            rafterLen: 3.600,             // 3000 mm + 600 mm spliced rafter
+            aluRailLen: 3.500,            // 3500 mm 40x40 aluminum rail
+            panelW: 1.134,                // DAH Solar width 1134 mm
+            panelL: 1.762,                // DAH Solar length 1762 mm
+            panelT: 0.030,                // 30 mm black frame thickness
+            panelGap: 0.020               // 20 mm gap with EPDM T-seal
+        };
+
+        // Top of paving slab + leg height gives exact rafter pivot elevations:
+        // South pivot Y = 0.050 + 2.100 = 2.150 m (2100 mm above slab)
+        // North pivot Y = 0.670 + 0.050 + 2.596 = 3.316 m (3266 mm above South slab plane -> deltaY = 1.166 m over 2.500 m = tan(25°))
+        const Y_PIVOT_SOUTH = GEO.yBaseSouth + GEO.slabH + GEO.legH_South;
+        const Y_PIVOT_NORTH = GEO.yBaseNorth + GEO.slabH + GEO.legH_North;
+
+        let MATS = {};
+
+        // ============================================================================
+        // SCENE INITIALIZATION
+        // ============================================================================
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b1120);
+            scene.fog = new THREE.FogExp2(0x0b1120, 0.045);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 100);
+            camera.position.set(4.2, 2.8, 4.8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.target.set(0, 1.75, 0);
+            controls.maxDistance = 22;
+            controls.minDistance = 0.15;
+
+            // Lighting setup
+            const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.85);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
+            dirLight.position.set(5.5, 9.5, 6.5);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 25;
+            const d = 5.5;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            dirLight.shadow.bias = -0.0005;
+            scene.add(dirLight);
+
+            const backLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
+            backLight.position.set(-5, 4, -6);
+            scene.add(backLight);
+
+            // Initialize shared materials
+            MATS = {
+                galvSteel: new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.72, roughness: 0.32 }),
+                slotCyan: new THREE.MeshStandardMaterial({ color: 0x06b6d4, emissive: 0x083344, roughness: 0.35 }),
+                lipBlue: new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.5, roughness: 0.3 }),
+                perfHole: new THREE.MeshBasicMaterial({ color: 0x0f172a }),
+                fastenerGold: new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.78, roughness: 0.25 }),
+                channelNut: new THREE.MeshStandardMaterial({ color: 0xea580c, metalness: 0.65, roughness: 0.3 }),
+                aluRail: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.82, roughness: 0.22 }),
+                epdmBlack: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.92 }),
+                clampBlack: new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.4 }),
+                concreteSlab: new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.9 }),
+                concreteBlock: new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.92 }),
+                highlight: new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, metalness: 0.4, roughness: 0.2 })
+            };
+
+            // Add all layer groups to scene; OSB walls are OFF by default
+            Object.values(layerGroups).forEach(grp => scene.add(grp));
+            layerGroups.osb.visible = false;
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ============================================================================
+        // HELPER FUNCTIONS: REGISTRATION, REALISTIC UNISTRUT 41x41 C-PROFILE & M10 BOLTS
+        // ============================================================================
+        function registerSelectable(mesh, meta, explodeVec = null) {
+            mesh.userData.meta = meta;
+            selectableMeshes.push(mesh);
+            if (explodeVec) {
+                registerExplode(mesh, explodeVec);
+            }
+        }
+
+        function registerExplode(obj, explodeVec) {
+            explodeItems.push({
+                object: obj,
+                basePos: obj.position.clone(),
+                explodeVec: explodeVec.clone()
+            });
+        }
+
+        /**
+         * Creates a true-to-scale 41x41x2.5 mm Unistrut C-profile with:
+         * - U-shaped walls (back web at -Z, left/right flanges)
+         * - Inward-turned stiffening lips on the +Z open face (leaving a 22 mm slot)
+         * - Cyan interior strip + sky-blue lips so the open slot orientation is unmistakable
+         * - Slotted oval perforations (14x28 mm every 50 mm) along the back web
+         * Local axis: Y runs from 0 to `length`. Open slot faces +Z.
+         */
+        function createUnistrutCProfile(length, meta, explodeVec = null) {
+            const group = new THREE.Group();
+            const w = GEO.cSize; // 0.041 m
+            const t = 0.0028;    // wall thickness for crisp visibility
+            const lipW = 0.0095; // leaves 22 mm open slot in the middle
+
+            // Back web (at -Z)
+            const backGeo = new THREE.BoxGeometry(w, length, t);
+            const backMesh = new THREE.Mesh(backGeo, MATS.galvSteel);
+            backMesh.position.set(0, length / 2, -w / 2 + t / 2);
+            backMesh.castShadow = true;
+            backMesh.receiveShadow = true;
+            registerSelectable(backMesh, meta);
+            group.add(backMesh);
+
+            // Left flange (-X)
+            const sideGeo = new THREE.BoxGeometry(t, length, w);
+            const leftMesh = new THREE.Mesh(sideGeo, MATS.galvSteel);
+            leftMesh.position.set(-w / 2 + t / 2, length / 2, 0);
+            leftMesh.castShadow = true;
+            registerSelectable(leftMesh, meta);
+            group.add(leftMesh);
+
+            // Right flange (+X)
+            const rightMesh = new THREE.Mesh(sideGeo, MATS.galvSteel);
+            rightMesh.position.set(w / 2 - t / 2, length / 2, 0);
+            rightMesh.castShadow = true;
+            registerSelectable(rightMesh, meta);
+            group.add(rightMesh);
+
+            // Inward-turned lips at +Z (open channel side)
+            const lipGeo = new THREE.BoxGeometry(lipW, length, t * 1.2);
+            const leftLip = new THREE.Mesh(lipGeo, MATS.lipBlue);
+            leftLip.position.set(-w / 2 + lipW / 2, length / 2, w / 2 - t / 2);
+            registerSelectable(leftLip, meta);
+            group.add(leftLip);
+
+            const rightLip = new THREE.Mesh(lipGeo, MATS.lipBlue);
+            rightLip.position.set(w / 2 - lipW / 2, length / 2, w / 2 - t / 2);
+            registerSelectable(rightLip, meta);
+            group.add(rightLip);
+
+            // Cyan inner channel indicator strip (visible through the 22 mm open slot)
+            const slotStripGeo = new THREE.BoxGeometry(0.020, length - 0.004, 0.002);
+            const slotStrip = new THREE.Mesh(slotStripGeo, MATS.slotCyan);
+            slotStrip.position.set(0, length / 2, w / 2 - 0.005);
+            registerSelectable(slotStrip, meta);
+            group.add(slotStrip);
+
+            // Back perforations (14x28 mm oval slots every 75 mm along the back web)
+            const holeCount = Math.floor((length - 0.06) / 0.075);
+            const holeGeo = new THREE.BoxGeometry(0.014, 0.028, 0.004);
+            for (let i = 0; i < holeCount; i++) {
+                const yPos = 0.05 + i * 0.075;
+                const holeMesh = new THREE.Mesh(holeGeo, MATS.perfHole);
+                holeMesh.position.set(0, yPos, -w / 2 + 0.001);
+                registerSelectable(holeMesh, meta);
+                group.add(holeMesh);
+            }
+
+            if (explodeVec) {
+                registerExplode(group, explodeVec);
+            }
+            return group;
+        }
+
+        /**
+         * Creates an M10 hex bolt + washer + orange spring channel nut assembly.
+         */
+        function createM10FastenerCluster(meta, explodeVec = null) {
+            const grp = new THREE.Group();
+
+            // Hex head
+            const headGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.007, 6);
+            headGeo.rotateX(Math.PI / 2);
+            const headMesh = new THREE.Mesh(headGeo, MATS.fastenerGold);
+            headMesh.position.z = 0.005;
+            registerSelectable(headMesh, meta);
+            grp.add(headMesh);
+
+            // Washer
+            const washerGeo = new THREE.CylinderGeometry(0.013, 0.013, 0.002, 16);
+            washerGeo.rotateX(Math.PI / 2);
+            const washerMesh = new THREE.Mesh(washerGeo, MATS.fastenerGold);
+            washerMesh.position.z = 0.001;
+            registerSelectable(washerMesh, meta);
+            grp.add(washerMesh);
+
+            // Rectangular M10 spring channel nut (rugós csatornaanya) inside the C-profile
+            const nutGeo = new THREE.BoxGeometry(0.034, 0.019, 0.008);
+            const nutMesh = new THREE.Mesh(nutGeo, MATS.channelNut);
+            nutMesh.position.z = -0.012;
+            registerSelectable(nutMesh, meta);
+            grp.add(nutMesh);
+
+            if (explodeVec) {
+                registerExplode(grp, explodeVec);
+            }
+            return grp;
+        }
+
+        // ============================================================================
+        // 1. SITE CONTEXT (FIXED SHED & BACK TREES) + 15-DEGREE SLOPED TERRAIN
+        // ============================================================================
+        function buildEnvironmentAndTerrain() {
+            const groundY = (z) => (1.25 - z) * Math.tan(SLOPE_RAD);
+
+            // 15-degree Sloped Terrain Mesh
+            const terrainGeo = new THREE.PlaneGeometry(11.5, 10.5, 28, 28);
+            terrainGeo.rotateX(-Math.PI / 2);
+            const posAttr = terrainGeo.attributes.position;
+            for (let i = 0; i < posAttr.count; i++) {
+                const z = posAttr.getZ(i);
+                posAttr.setY(i, groundY(z) - 0.01);
+            }
+            terrainGeo.computeVertexNormals();
+
+            const grassCanvas = document.createElement('canvas');
+            grassCanvas.width = 256;
+            grassCanvas.height = 256;
+            const gCtx = grassCanvas.getContext('2d');
+            gCtx.fillStyle = '#3b4a26';
+            gCtx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 1100; i++) {
+                gCtx.fillStyle = i % 3 === 0 ? '#4d6b2c' : (i % 2 === 0 ? '#6e5536' : '#2d3b1e');
+                gCtx.fillRect(Math.random() * 256, Math.random() * 256, 4, 4);
+            }
+            const grassTex = new THREE.CanvasTexture(grassCanvas);
+            grassTex.wrapS = THREE.RepeatWrapping;
+            grassTex.wrapT = THREE.RepeatWrapping;
+            grassTex.repeat.set(9, 9);
+
+            const terrainMesh = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 }));
+            terrainMesh.receiveShadow = true;
+            registerSelectable(terrainMesh, {
+                category: '6. Terep és Alapozás',
+                title: '15°-os Lejtős Helyszíni Terep (Északról Délre lejt)',
+                dims: 'Lejtés: 15.0° (26.8%) • Szintkülönbség 2500 mm-en: +670 mm',
+                slot: 'Természetes lejtős talajréteg',
+                fasteners: '6 db 400×400×50 mm-es vízszintezett beton járdalap a zsalukövek alatt',
+                notes: 'Déli lábsor (Z = +1250 mm): Y = 0 mm. Északi lábsor (Z = -1250 mm): Y = +670 mm.'
+            });
+            layerGroups.foundation.add(terrainMesh);
+
+            // Sloped reference CAD grid
+            const gridHelper = new THREE.GridHelper(8, 16, 0x38bdf8, 0x334155);
+            gridHelper.position.set(0, groundY(0) + 0.005, 0);
+            gridHelper.rotation.x = SLOPE_RAD;
+            layerGroups.foundation.add(gridHelper);
+
+            // --- SURROUNDING PHOTO CONTEXT (Layer 7) ---
+            const contextGrp = new THREE.Group();
+            const shedWallMat = new THREE.MeshStandardMaterial({ color: 0x1c2228, roughness: 0.88, side: THREE.DoubleSide });
+            const fasciaMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.8 });
+
+            // Terracotta tile roof procedural texture
+            const tileCanvas = document.createElement('canvas');
+            tileCanvas.width = 128;
+            tileCanvas.height = 128;
+            const tCtx = tileCanvas.getContext('2d');
+            tCtx.fillStyle = '#9c4a3b';
+            tCtx.fillRect(0, 0, 128, 128);
+            for (let x = 0; x < 128; x += 16) {
+                tCtx.fillStyle = '#7c3629';
+                tCtx.fillRect(x, 0, 5, 128);
+                tCtx.fillStyle = '#b45b4b';
+                tCtx.fillRect(x + 5, 0, 4, 128);
+            }
+            for (let y = 0; y < 128; y += 32) {
+                tCtx.fillStyle = '#5c261c';
+                tCtx.fillRect(0, y, 128, 3);
+            }
+            const tileTex = new THREE.CanvasTexture(tileCanvas);
+            tileTex.wrapS = THREE.RepeatWrapping;
+            tileTex.wrapT = THREE.RepeatWrapping;
+            tileTex.repeat.set(8, 10);
+            const shedRoofMat = new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.75 });
+
+            // A) Neighboring Black/Anthracite Building on the West side (X = -1.82 m to -3.85 m)
+            // Matches reference photo rajz3.jpg: back ridge rises HIGHER (Y = 3.78 m) than the solar carport roof,
+            // and slopes down toward the front-left (Y = 1.85 m at Z = +1.55 m) without touching the panels.
+            const zShedNorth = -2.35;
+            const zShedSouth = 1.55;
+            const shedWidthX = 2.05;
+            const xWallEast = -1.82; // Clear of the carport's West solar overhang (-1.721 m) and West OSB wall (-1.56 m)
+
+            const yEaveNorth = 3.78; // Taller than the solar roof at the northern back ridge, just like in the photo
+            const yEaveSouth = 1.85; // Slopes down toward the front-left foreground
+            const yGndNorth = groundY(zShedNorth) - 0.15;
+            const yGndSouth = groundY(zShedSouth) - 0.15;
+
+            // Build explicit 3D vertices for the 6 faces of the sloped-top neighbor building
+            const xE = xWallEast;
+            const xW = xWallEast - shedWidthX;
+            const shedVertices = new Float32Array([
+                // East wall (facing the carport at x = xE)
+                xE, yGndNorth, zShedNorth,   xE, yGndSouth, zShedSouth,   xE, yEaveSouth, zShedSouth,
+                xE, yGndNorth, zShedNorth,   xE, yEaveSouth, zShedSouth,  xE, yEaveNorth, zShedNorth,
+                // West wall (at x = xW)
+                xW, yGndSouth, zShedSouth,   xW, yGndNorth, zShedNorth,   xW, yEaveNorth, zShedNorth,
+                xW, yGndSouth, zShedSouth,   xW, yEaveNorth, zShedNorth,  xW, yEaveSouth, zShedSouth,
+                // South front wall (at z = zShedSouth)
+                xW, yGndSouth, zShedSouth,   xE, yEaveSouth, zShedSouth,  xE, yGndSouth, zShedSouth,
+                xW, yGndSouth, zShedSouth,   xW, yEaveSouth, zShedSouth,  xE, yEaveSouth, zShedSouth,
+                // North back wall (at z = zShedNorth)
+                xE, yGndNorth, zShedNorth,   xW, yEaveNorth, zShedNorth,  xW, yGndNorth, zShedNorth,
+                xE, yGndNorth, zShedNorth,   xE, yEaveNorth, zShedNorth,  xW, yEaveNorth, zShedNorth
+            ]);
+            const shedGeo = new THREE.BufferGeometry();
+            shedGeo.setAttribute('position', new THREE.BufferAttribute(shedVertices, 3));
+            shedGeo.computeVertexNormals();
+
+            const shedWallMesh = new THREE.Mesh(shedGeo, shedWallMat);
+            shedWallMesh.castShadow = true;
+            shedWallMesh.receiveShadow = true;
+            registerSelectable(shedWallMesh, {
+                category: '7. Helyszíni Környezet (Szomszéd fekete épület)',
+                title: 'Szomszéd Fekete/Antracit Falú Épület (Nyugati oldal)',
+                dims: 'Trapéz falprofil - Hátsó gerinc: Y = 3780 mm, Első eresz: Y = 1850 mm (X = -1820 mm)',
+                slot: 'A referenciafotón látható sötét falú épület, amelynek cserépteteje hátul magasabbra nyúlik, mint a napelemes tető.',
+                fasteners: 'Önálló szomszédos épület, amely mellé zárt (ablak nélküli), földig érő nyugati OSB fal kapcsolható.',
+                notes: 'Nem ütközik a napelemekkel, és a zöld hordó teljesen kívül, előtte áll.'
+            });
+            contextGrp.add(shedWallMesh);
+
+            // Sloped Terracotta Roof + Concrete/Timber Fascia Board aligned with the neighbor building's eave
+            const dY = yEaveNorth - yEaveSouth;
+            const dZ = zShedSouth - zShedNorth;
+            const roofSlopeLen = Math.hypot(dY, dZ) + 0.20;
+            const roofPitchAngle = Math.atan2(dY, dZ);
+
+            const roofPivot = new THREE.Group();
+            roofPivot.position.set(xWallEast - shedWidthX / 2 + 0.04, (yEaveNorth + yEaveSouth) / 2 + 0.05, (zShedNorth + zShedSouth) / 2);
+            roofPivot.rotation.x = roofPitchAngle;
+
+            const tileRoofMesh = new THREE.Mesh(new THREE.BoxGeometry(shedWidthX + 0.16, 0.08, roofSlopeLen), shedRoofMat);
+            tileRoofMesh.castShadow = true;
+            tileRoofMesh.receiveShadow = true;
+            registerSelectable(tileRoofMesh, {
+                category: '7. Helyszíni Környezet (Szomszéd cseréptető)',
+                title: 'Szomszéd Épület Piros Cserépteteje és Ereszszegélye',
+                dims: 'Hátsó magasság: 3780 mm (magasabb a motorbeállónál) - Első magasság: 1850 mm',
+                slot: 'Helyszíni referencia a feltöltött fotók alapján',
+                fasteners: '-',
+                notes: 'A rajz3.jpg fotón látható módon hátul a napelemes tető fölé emelkedik, elöl pedig lefut.'
+            });
+            roofPivot.add(tileRoofMesh);
+
+            const fasciaMesh = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.13, roofSlopeLen), fasciaMat);
+            fasciaMesh.position.set((shedWidthX + 0.16) / 2, -0.03, 0);
+            roofPivot.add(fasciaMesh);
+            contextGrp.add(roofPivot);
+
+            // B) Green Cylindrical Rain Barrel in the left foreground (X = -1.65 m, Z = +1.92 m)
+            // Placed IN FRONT of the black wall (Z = +1.92 m > zShedSouth = +1.55 m), completely clear of the building!
+            const barrelX = -1.65;
+            const barrelZ = 1.92;
+            const barrelMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.30, 0.28, 0.86, 24),
+                new THREE.MeshStandardMaterial({ color: 0x1b633e, roughness: 0.5 })
+            );
+            barrelMesh.position.set(barrelX, groundY(barrelZ) + 0.43, barrelZ);
+            barrelMesh.castShadow = true;
+            registerSelectable(barrelMesh, {
+                category: '7. Helyszíni Környezet (Fotó alapján)',
+                title: 'Zöld Esővízgyűjtő Hordó (Bal elöl, a fekete fal előtt)',
+                dims: 'Átmérő: 600 x 860 mm - Pozíció: X = -1650 mm, Z = +1920 mm',
+                slot: 'Teljesen szabadon áll a fekete épület előtt a bal első előtérben (nem csúszik bele a falba).',
+                fasteners: '-',
+                notes: 'Pontosan a referenciafotó bal alsó részén látható pozícióban.'
+            });
+            contextGrp.add(barrelMesh);
+
+            // C) Brown Corrugated Utility Box on front-right (X = +1.65 m, Z = +1.75 m)
+            const boxX = 1.65;
+            const boxZ = 1.75;
+            const boxY = groundY(boxZ);
+            const boxGrp = new THREE.Group();
+            const boxMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.74, 0.62, 0.74),
+                new THREE.MeshStandardMaterial({ color: 0x6e473b, roughness: 0.7 })
+            );
+            boxMesh.position.y = 0.31;
+            boxMesh.castShadow = true;
+            boxGrp.add(boxMesh);
+
+            const lidMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.29, 0.08, 20), fasciaMat);
+            lidMesh.position.y = 0.66;
+            boxGrp.add(lidMesh);
+            boxGrp.position.set(boxX, boxY, boxZ);
+            registerSelectable(boxMesh, {
+                category: '7. Helyszíni Környezet (Fotó alapján)',
+                title: 'Barna Hullámlemez Doboz / Akna Kerek Fedéllel (Jobb elöl)',
+                dims: '740 x 740 x 620 mm - Pozíció: X = +1650 mm, Z = +1750 mm',
+                slot: 'Referencia tereptárgy a fotóról (Dél-Keleti előtér)',
+                fasteners: '-',
+                notes: 'A referenciafotó jobb alsó sarkában látható barna tereptárgy.'
+            });
+            contextGrp.add(boxGrp);
+
+            // D) Tall Evergreen Thuja Trees at the BACK (North slope, Z < -2.15 m) behind the solar array
+            const foliageDark = new THREE.MeshStandardMaterial({ color: 0x26461b, roughness: 0.9 });
+            const foliageMid = new THREE.MeshStandardMaterial({ color: 0x355e24, roughness: 0.88 });
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.9 });
+
+            const backTrees = [
+                [-1.40, -2.55, 4.1, 0.90, foliageMid],
+                [-0.50, -2.65, 4.5, 1.00, foliageDark],
+                [ 0.45, -2.60, 4.8, 1.08, foliageMid],
+                [ 1.35, -2.45, 4.6, 1.02, foliageDark],
+                [ 2.15, -2.20, 4.2, 0.95, foliageMid]
+            ];
+
+            backTrees.forEach(([tx, tz, th, tr, fMat], idx) => {
+                const ty = groundY(tz);
+                const treeGrp = new THREE.Group();
+
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 1.2, 8), trunkMat);
+                trunk.position.y = 0.6;
+                treeGrp.add(trunk);
+
+                const lowerCone = new THREE.Mesh(new THREE.ConeGeometry(tr, th * 0.65, 10), fMat);
+                lowerCone.position.y = th * 0.35 + 0.5;
+                lowerCone.castShadow = true;
+                treeGrp.add(lowerCone);
+
+                const upperCone = new THREE.Mesh(new THREE.ConeGeometry(tr * 0.78, th * 0.55, 10), fMat);
+                upperCone.position.y = th * 0.62 + 0.5;
+                upperCone.castShadow = true;
+                treeGrp.add(upperCone);
+
+                treeGrp.position.set(tx, ty, tz);
+                registerSelectable(lowerCone, {
+                    category: '7. Helyszíni Környezet (Hátsó tujasor)',
+                    title: `Hátsó Magas Tuja / Örökzöld (#${idx + 1} - Északi domboldal)`,
+                    dims: `Magasság: ~${th.toFixed(1)} m • Pozíció a napelemek mögött: Z = ${Math.round(tz * 1000)} mm`,
+                    slot: 'A referenciafotón a napelemek mögött/felett látható magas tujasor.',
+                    fasteners: '-',
+                    notes: 'Északi oldalon, a tető mögött helyezkednek el.'
+                });
+                contextGrp.add(treeGrp);
+            });
+
+            layerGroups.context.add(contextGrp);
+        }
+
+        // ============================================================================
+        // 2. FOUNDATIONS (SLAB + 3x ZSALUKŐ) & TELESCOPIC DOUBLE C-PROFILE LEGS
+        // ============================================================================
+        function buildFoundationsAndLegs() {
+            const rows = [
+                { name: 'Déli (Első)', z: GEO.zSouth, yBase: GEO.yBaseSouth, legH: GEO.legH_South },
+                { name: 'Északi (Hátsó)', z: GEO.zNorth, yBase: GEO.yBaseNorth, legH: GEO.legH_North }
+            ];
+
+            rows.forEach((row) => {
+                GEO.colX.forEach((x, colIdx) => {
+                    const colLabel = colIdx === 0 ? 'Nyugati' : (colIdx === 1 ? 'Középső' : 'Keleti');
+                    const fullLocName = `${row.name} - ${colLabel} láb (X=${x * 1000} mm, Z=${row.z * 1000} mm)`;
+
+                    // 1) 400x400x50 mm Concrete Paving Slab
+                    const slabGeo = new THREE.BoxGeometry(0.400, GEO.slabH, 0.400);
+                    const slabMesh = new THREE.Mesh(slabGeo, MATS.concreteSlab);
+                    slabMesh.position.set(x, row.yBase + GEO.slabH / 2, row.z);
+                    slabMesh.castShadow = true;
+                    slabMesh.receiveShadow = true;
+                    registerSelectable(slabMesh, {
+                        category: '6. Alapozás - Beton Járdalap',
+                        title: `Beton Járdalap (${fullLocName})`,
+                        dims: '400 × 400 × 50 mm • Alapsík: Y = ' + Math.round(row.yBase * 1000) + ' mm',
+                        slot: '-',
+                        fasteners: 'Fagyálló kavicságyra vízszintezve a 15°-os lejtőben',
+                        notes: 'Erre épül fel a 3 db egymásra rakott 400×200×250 mm-es beton zsalukő oszlop.'
+                    });
+                    layerGroups.foundation.add(slabMesh);
+
+                    // 2) 3 stacked 400x200x250 mm Concrete Zsalukő Blocks (750 mm total height)
+                    const ySlabTop = row.yBase + GEO.slabH;
+                    for (let b = 0; b < 3; b++) {
+                        const blockGeo = new THREE.BoxGeometry(0.400, 0.246, 0.200);
+                        const blockMesh = new THREE.Mesh(blockGeo, MATS.concreteBlock);
+                        blockMesh.position.set(x, ySlabTop + b * 0.250 + 0.125, row.z);
+                        blockMesh.castShadow = true;
+                        blockMesh.receiveShadow = true;
+                        registerSelectable(blockMesh, {
+                            category: '6. Alapozás - Beton Zsalukő Oszlop',
+                            title: `${b + 1}. Beton Zsalukő (${fullLocName})`,
+                            dims: '400 × 200 × 250 mm (3 db = 750 mm összmagasság)',
+                            slot: 'Üregébe C25/30 betonnal kiöntve a 41×41-es C-profil csonk és a 250 mm-es T-talp.',
+                            fasteners: 'Betonacél tüskézés + 250 mm-es fordított T-talp a zsalukő alatt',
+                            notes: 'A zsalukő teteje a járdalaptól +750 mm-re van.'
+                        });
+                        layerGroups.foundation.add(blockMesh);
+                    }
+
+                    // 3) 1000 mm Lower C-Profile Stub (Csonk) with 250 mm Inverted T-foot at bottom
+                    const tFootGeo = new THREE.BoxGeometry(0.250, 0.008, 0.045);
+                    const tFootMesh = new THREE.Mesh(tFootGeo, MATS.fastenerGold);
+                    tFootMesh.position.set(x, ySlabTop + 0.040, row.z);
+                    registerSelectable(tFootMesh, {
+                        category: '5. Csomópont - Fordított T-talp',
+                        title: `250 mm-es Fordított T-Talp a Zsalukőben (${fullLocName})`,
+                        dims: '250 × 41 × 8 mm acél talplemez / C-profil talp',
+                        slot: 'A zsalukő alsó zónájában bebetonozva a kihúzás ellen.',
+                        fasteners: '2× M10×25 csavar + L-sarok vagy hegesztett varrat a 1000 mm-es csonk alján.',
+                        notes: 'Megakadályozza a csonk elfordulását és kihúzását.'
+                    });
+                    layerGroups.fasteners.add(tFootMesh);
+
+                    // Stub: 1000 mm long (710 mm inside zsalukő + 290 mm protruding above, plus overlap zone)
+                    const stubLen = 1.000;
+                    const stubStartY = ySlabTop + 0.350;
+                    const stubMeta = {
+                        category: '4. C-profil Főváz - Alsó Csonk (1000 mm)',
+                        title: `Alsó Betonozott C-Profil Csonk (${fullLocName})`,
+                        dims: '41 × 41 × 2.5 mm Unistrut C-profil • Hossz: 1000 mm',
+                        slot: 'Nyitott csatorna (22 mm rés) DÉL (+Z) felé néz (türkiz sávval jelölve), hátoldala ÉSZAK felé.',
+                        fasteners: 'Felső 400 mm-es szakaszán 3× M10×25 A2 csavar + M10 rugós csatornaanya fogja össze a felső lábbal.',
+                        notes: 'A zsalukőből kiálló csonk biztosítja a teleszkópos magasságállítást a 15°-os lejtőn.'
+                    };
+                    const stubProfile = createUnistrutCProfile(stubLen, stubMeta, new THREE.Vector3(0, 0, 0.06));
+                    stubProfile.position.set(x, stubStartY, row.z);
+                    layerGroups.unistrut.add(stubProfile);
+
+                    // 4) Upper Telescopic Leg Profile (400 mm overlap with the stub!)
+                    const upperStartY = stubStartY + stubLen - 0.400;
+                    const pivotY = ySlabTop + row.legH;
+                    const upperLen = pivotY - upperStartY;
+
+                    // Outer columns orient their open slot OUTWARD so optional OSB walls bolt directly into them
+                    const isWestCol = colIdx === 0;
+                    const isEastCol = colIdx === 2;
+                    const slotDirectionText = isWestCol
+                        ? 'Nyitott csatorna (22 mm rés) NYUGAT (-X, kifelé) néz, hogy az opcionális 18 mm-es OSB-3 fal kívülről M8-as csatornaanyával síkban rögzüljön.'
+                        : (isEastCol
+                            ? 'Nyitott csatorna (22 mm rés) KELET (+X, kifelé) néz.'
+                            : 'Nyitott csatorna (22 mm rés) ÉSZAK (-Z) felé néz, háttal (back-to-back) csavarozva a csonkhoz.');
+
+                    const upperMeta = {
+                        category: '4. C-profil Főváz - Felső Teleszkópos Láb',
+                        title: `Felső Lábprofil (${fullLocName})`,
+                        dims: `41 × 41 × 2.5 mm C-profil • Hossz: ${Math.round(upperLen * 1000)} mm • Teljes lábmagasság a járdalaptól: ${Math.round(row.legH * 1000)} mm`,
+                        slot: slotDirectionText,
+                        fasteners: 'Alul 400 mm átfedésben 3× M10×25 A2 csavar + csatornaanya; felül 25°-os csuklós szarufa-csatlakozó.',
+                        notes: row.name.includes('Északi')
+                            ? 'Északi láb: +670 mm járdalap + 2596 mm láb = Y +3266 mm tetőcsomópont (25°-os tetődőlés).'
+                            : 'Déli láb: 0 mm járdalap + 2100 mm láb = Y +2100 mm tetőcsomópont.'
+                    };
+
+                    const upperProfile = createUnistrutCProfile(upperLen, upperMeta, new THREE.Vector3(0, 0.08, -0.08));
+                    if (isWestCol) {
+                        upperProfile.rotation.y = -Math.PI / 2; // Open slot faces West (-X)
+                    } else if (isEastCol) {
+                        upperProfile.rotation.y = Math.PI / 2;  // Open slot faces East (+X)
+                    } else {
+                        upperProfile.rotation.y = Math.PI;      // Open slot faces North (-Z)
+                    }
+                    upperProfile.position.set(x, upperStartY, row.z - GEO.cSize);
+                    layerGroups.unistrut.add(upperProfile);
+
+                    // 5) 3x M10 Bolts + Channel Nuts across the 400 mm Overlap Zone
+                    const overlapBoltOffsets = [0.060, 0.200, 0.340];
+                    overlapBoltOffsets.forEach((offY, bIdx) => {
+                        const boltY = upperStartY + offY;
+                        const boltMeta = {
+                            category: '5. Csomópont - Dupla Láb 400 mm Átfedés Csavarozás',
+                            title: `M10 Átfedés Csavar #${bIdx + 1}/3 (${fullLocName})`,
+                            dims: 'M10 × 25 DIN 933 A2 hatlapfejű csavar + M10 rugós csatornaanya + fakötésű alátét',
+                            slot: 'Átmenő csavarozás a két 41×41-es profil 14×28 mm-es perforációin keresztül, 400 mm átfedési hosszon.',
+                            fasteners: '3× M10×25 A2 csavar + 3× M10 rugós csatornaanya lábanként (összesen 18 szett a 6 lábon).',
+                            notes: 'A perforációkban milliméter pontosan vízszintezhető a tetősík a meghúzás előtt.'
+                        };
+                        const boltCluster = createM10FastenerCluster(boltMeta, new THREE.Vector3(0.14, 0, 0.14));
+                        boltCluster.position.set(x, boltY, row.z + GEO.cSize / 2);
+                        layerGroups.fasteners.add(boltCluster);
+                    });
+                });
+            });
+        }
+
+        // ============================================================================
+        // 3. ROOF RAFTERS (3600mm = 3000+600), 25° HINGED JOINTS, BEAMS & 8x KNEE BRACES
+        // ============================================================================
+        function buildRoofRaftersAndJoints() {
+            const zMid = 0.0;
+            const yMid = (Y_PIVOT_NORTH + Y_PIVOT_SOUTH) / 2;
+
+            // --- A) 3x RAFTERS (Szarufák: 3600 mm total = 3000 mm + 600 mm with 4-bolt U-splice) ---
+            GEO.colX.forEach((x, colIdx) => {
+                const colLabel = colIdx === 0 ? 'Nyugati (-1500)' : (colIdx === 1 ? 'Középső (0)' : 'Keleti (+1500)');
+                const rafterGroup = new THREE.Group();
+                rafterGroup.position.set(x, yMid + 0.025, zMid);
+                rafterGroup.rotation.x = PITCH_RAD; // 25 deg pitch down toward South (+Z)
+
+                const mainLen = 3.000;
+                const extLen = 0.600;
+
+                const rafterMainMeta = {
+                    category: '4. Tetőszerkezet - Szarufa Fődarab (3000 mm)',
+                    title: `Szarufa 3000 mm-es Főszál (${colLabel})`,
+                    dims: '41 × 41 × 2.5 mm C-profil • 3000 mm + 600 mm toldás = 3600 mm teljes hossz • 25° dőlésszög',
+                    slot: 'Nyitott csatorna (22 mm rés) FELFELÉ (a napelemek és alusínek felé) néz, hogy közvetlenül fogadja az alusínek M10-es csatornaanyáit!',
+                    fasteners: 'Alul 2 db 25°-os csuklós sarokelem a lábakhoz; felül 4× M10 csavar az EPDM-es alusínekhez; déli végén 4-csavaros U-toldó.',
+                    notes: 'Elöl és hátul ~350 mm túlnyúlás a lábak tengelyén túl.'
+                };
+
+                const mainSegWrapper = new THREE.Group();
+                const mainSeg = createUnistrutCProfile(mainLen, rafterMainMeta);
+                mainSeg.rotation.x = Math.PI / 2; // Open slot faces +Y (UPWARD toward solar rails)
+                mainSegWrapper.add(mainSeg);
+                mainSegWrapper.position.set(0, 0, -1.800);
+                registerExplode(mainSegWrapper, new THREE.Vector3(0, 0.16, 0));
+                rafterGroup.add(mainSegWrapper);
+
+                const rafterExtMeta = {
+                    category: '4. Tetőszerkezet - Szarufa Toldás (600 mm)',
+                    title: `Szarufa 600 mm-es Déli Toldószál (${colLabel})`,
+                    dims: '41 × 41 × 2.5 mm C-profil • Hossz: 600 mm (Összhossz: 3600 mm)',
+                    slot: 'Nyitott csatorna (22 mm rés) FELFELÉ néz (folytatólagosan a 3000 mm-es főszállal).',
+                    fasteners: '4-csavaros U-alakú Unistrut/OBO egyenes profilösszekötővel (4× M10×25 + csatornaanya) toldva.',
+                    notes: 'A szabványos 3000 mm-es szálanyag gazdaságos meghosszabbítása 3600 mm-re.'
+                };
+
+                const extSegWrapper = new THREE.Group();
+                const extSeg = createUnistrutCProfile(extLen, rafterExtMeta);
+                extSeg.rotation.x = Math.PI / 2;
+                extSegWrapper.add(extSeg);
+                extSegWrapper.position.set(0, 0, 1.200);
+                registerExplode(extSegWrapper, new THREE.Vector3(0, 0.16, 0.08));
+                rafterGroup.add(extSegWrapper);
+
+                // U-shaped 4-bolt Straight Splice Connector at S = +1.200 m
+                const spliceMeta = {
+                    category: '5. Csomópont - 4-Csavaros U-Alakú Szarufatoldó',
+                    title: `U-Alakú Egyenes Profilösszekötő Toldó (${colLabel} szarufa, 3000+600 mm)`,
+                    dims: 'Unistrut / OBO 4-lyukú külső U-toldóidom • Hossz: 200 mm, 45×45×4 mm acél',
+                    slot: 'Kívülről pattan rá a 41×41-es szarufák találkozására.',
+                    fasteners: '4× M10×25 A2 hatlapfejű csavar + 4× M10 rugós csatornaanya',
+                    notes: 'Merev, hajlításra is teherbíró toldást ad a déli túlnyúlás előtt.'
+                };
+
+                const spliceGrp = new THREE.Group();
+                const uPlateGeo = new THREE.BoxGeometry(0.049, 0.036, 0.200);
+                const uPlateMesh = new THREE.Mesh(uPlateGeo, MATS.fastenerGold);
+                uPlateMesh.position.set(0, -0.005, 1.200);
+                registerSelectable(uPlateMesh, spliceMeta);
+                spliceGrp.add(uPlateMesh);
+
+                [-0.075, -0.025, 0.025, 0.075].forEach(zOff => {
+                    const b = createM10FastenerCluster(spliceMeta);
+                    b.rotation.x = -Math.PI / 2;
+                    b.position.set(0, 0.023, 1.200 + zOff);
+                    spliceGrp.add(b);
+                });
+                registerExplode(spliceGrp, new THREE.Vector3(0, 0.22, 0.04));
+                rafterGroup.add(spliceGrp);
+
+                layerGroups.unistrut.add(rafterGroup);
+
+                // --- B) 25-DEGREE HINGED LEG-TO-RAFTER CONNECTORS ---
+                const legNodes = [
+                    { label: 'Déli (Első)', z: GEO.zSouth, y: Y_PIVOT_SOUTH },
+                    { label: 'Északi (Hátsó)', z: GEO.zNorth, y: Y_PIVOT_NORTH }
+                ];
+
+                legNodes.forEach(node => {
+                    const jointMeta = {
+                        category: '5. Csomópont - 25°-os Csuklós Láb-Szarufa Csatlakozó',
+                        title: `25°-os Állítható Unistrut Csuklós Csatlakozó + L-Szögvas (${node.label} ${colLabel})`,
+                        dims: 'Gyári Unistrut csuklós sarokelem (Hinged Connector) + 2× 4-lyukú L-szögvas, 25.0°-ra beállítva',
+                        slot: 'Alsó szára a függőleges lábhoz (2× M10), felső 25°-ban döntött szára a szarufa aljához (2× M10), M10 csuklócsavarral.',
+                        fasteners: '4× M10×25 A2 csavar + 4× M10 rugós csatornaanya + 1× M10×60 csukló-tengelycsavar önzáró anyával.',
+                        notes: 'Feszültségmentesen közvetíti a 25°-ban dőlő szarufa terhét a függőleges lábra.'
+                    };
+
+                    const jointGrp = new THREE.Group();
+                    jointGrp.position.set(x, node.y, node.z - GEO.cSize / 2);
+
+                    const lowerBracket = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.110, 0.052), MATS.fastenerGold);
+                    lowerBracket.position.set(0, -0.045, 0);
+                    registerSelectable(lowerBracket, jointMeta);
+                    jointGrp.add(lowerBracket);
+
+                    const pinGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.068, 16);
+                    pinGeo.rotateZ(Math.PI / 2);
+                    const pinMesh = new THREE.Mesh(pinGeo, MATS.channelNut);
+                    pinMesh.position.set(0, 0.010, 0);
+                    registerSelectable(pinMesh, jointMeta);
+                    jointGrp.add(pinMesh);
+
+                    const upperShoe = new THREE.Group();
+                    upperShoe.position.set(0, 0.015, 0);
+                    upperShoe.rotation.x = PITCH_RAD;
+                    const shoeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.054, 0.016, 0.160), MATS.fastenerGold);
+                    registerSelectable(shoeMesh, jointMeta);
+                    upperShoe.add(shoeMesh);
+
+                    [-0.05, 0.05].forEach(zB => {
+                        const topBolt = createM10FastenerCluster(jointMeta);
+                        topBolt.rotation.x = Math.PI / 2;
+                        topBolt.position.set(0, -0.010, zB);
+                        upperShoe.add(topBolt);
+                    });
+                    jointGrp.add(upperShoe);
+
+                    [-0.03, -0.07].forEach(yB => {
+                        const legBolt = createM10FastenerCluster(jointMeta);
+                        legBolt.position.set(0, yB, 0.028);
+                        jointGrp.add(legBolt);
+                    });
+
+                    registerExplode(jointGrp, new THREE.Vector3(0, 0.12, 0));
+                    layerGroups.fasteners.add(jointGrp);
+                });
+            });
+
+            // --- C) TOP HORIZONTAL E-W CONNECTING BEAMS (2x 3000 mm on North and South rows) ---
+            const beamRows = [
+                { name: 'Déli Felső Vízszintes Összekötő Gerenda', z: GEO.zSouth - GEO.cSize * 2, y: Y_PIVOT_SOUTH - 0.110 },
+                { name: 'Északi Felső Vízszintes Összekötő Gerenda', z: GEO.zNorth - GEO.cSize * 2, y: Y_PIVOT_NORTH - 0.110 }
+            ];
+
+            beamRows.forEach(bRow => {
+                const beamMeta = {
+                    category: '4. C-profil Főváz - Vízszintes Összekötő (3000 mm)',
+                    title: `${bRow.name} (Kelet-Nyugat)`,
+                    dims: '41 × 41 × 2.5 mm Unistrut C-profil • Hossz: 3000 mm (X = -1500 .. +1500 mm)',
+                    slot: 'Nyitott csatorna (22 mm rés) DÉL (+Z, befelé) néz, a belső síkon összefogva a 3 lábat.',
+                    fasteners: '3× 90 fokos 4-lyukú Unistrut sarokvas (12× M10×25 A2 csavar + 12× M10 rugós csatornaanya).',
+                    notes: 'Belső síkra szerelve, hogy a külső oldalon az opcionális OSB lapok teljesen síkban felfeküdjenek.'
+                };
+
+                const beamWrapper = new THREE.Group();
+                const beamC = createUnistrutCProfile(3.000, beamMeta);
+                beamC.rotation.z = -Math.PI / 2;
+                beamWrapper.add(beamC);
+                beamWrapper.position.set(-1.500, bRow.y, bRow.z);
+                registerExplode(beamWrapper, new THREE.Vector3(0, 0, -0.10));
+                layerGroups.unistrut.add(beamWrapper);
+
+                GEO.colX.forEach(x => {
+                    const lBracketMeta = {
+                        category: '5. Csomópont - 90°-os 4-Lyukú Sarokvas',
+                        title: `90°-os 4-Lyukú Unistrut Sarokvas (${bRow.name}, X=${x * 1000} mm)`,
+                        dims: '90° × 41 mm széles, 4-lyukú horganyzott sarokelem (6 mm vastag)',
+                        slot: 'Összeköti a függőleges lábat és a 3000 mm-es vízszintes összekötő C-profilt.',
+                        fasteners: '4× M10×25 A2 csavar + 4× M10 rugós csatornaanya',
+                        notes: 'Keresztirányú (Kelet-Nyugati) keretmerevséget biztosít.'
+                    };
+                    const lMesh = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.085, 0.048), MATS.fastenerGold);
+                    lMesh.position.set(x, bRow.y - 0.03, bRow.z);
+                    registerSelectable(lMesh, lBracketMeta, new THREE.Vector3(0, 0, -0.14));
+                    layerGroups.fasteners.add(lMesh);
+                });
+            });
+
+            // --- D) 8x 45-DEGREE KNEE BRACES (Karpántok - 600 mm 41x41 C-profil) ---
+            const addKneeBrace = (pStart, pEnd, braceName, dirDesc, explodeDir) => {
+                const vec = pEnd.clone().sub(pStart);
+                const len = vec.length();
+                const braceMeta = {
+                    category: '4. C-profil Főváz - 45°-os Karpánt (600 mm)',
+                    title: braceName,
+                    dims: '41 × 41 × 2.5 mm Unistrut C-profil • Névleges hossz: 600 mm • 45°-os beépítés',
+                    slot: dirDesc,
+                    fasteners: 'Mindkét végén gyári 45 fokos, 4-lyukú Unistrut sarokelem (2×4 db M10×25 csavar + M10 rugós csatornaanya).',
+                    notes: 'Belső síkon elhelyezve, hogy ne akadályozza az opcionális külső OSB-3 oldalfal burkolatot.'
+                };
+
+                const braceGrp = new THREE.Group();
+                const cProfile = createUnistrutCProfile(len, braceMeta);
+                const upVec = new THREE.Vector3(0, 1, 0);
+                cProfile.quaternion.setFromUnitVectors(upVec, vec.clone().normalize());
+                braceGrp.add(cProfile);
+                braceGrp.position.copy(pStart);
+                registerExplode(braceGrp, explodeDir);
+                layerGroups.unistrut.add(braceGrp);
+
+                [pStart, pEnd].forEach((pt, idx) => {
+                    const gussetMeta = {
+                        category: '5. Csomópont - Gyári 45°-os 4-Lyukú Unistrut Sarokelem',
+                        title: `45°-os 4-Lyukú Karpánt Sarokvas (${braceName} - ${idx === 0 ? 'Alsó' : 'Felső'} vég)`,
+                        dims: 'Unistrut 45°-os horganyzott lapos/szög sarokelem, 4× Ø11 mm furattal',
+                        slot: '2 csavar a karpántba, 2 csavar a lábba / szarufába / összekötőbe.',
+                        fasteners: '4× M10×25 A2 csavar + 4× M10 rugós csatornaanya',
+                        notes: 'Szélnyomás és szélrázás elleni háromszögelő csomópont.'
+                    };
+                    const gMesh = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.095, 0.052), MATS.fastenerGold);
+                    gMesh.position.copy(pt);
+                    registerSelectable(gMesh, gussetMeta, explodeDir.clone().multiplyScalar(1.3));
+                    layerGroups.fasteners.add(gMesh);
+                });
+            };
+
+            // Rafter underside elevation helper at any Z coordinate (roof rises at 25° toward North / -Z)
+            const getRafterBottomY = (zPos) => {
+                const yMid = (Y_PIVOT_NORTH + Y_PIVOT_SOUTH) / 2;
+                return (yMid + 0.025) - zPos * Math.tan(PITCH_RAD) - (GEO.cSize / 2) / Math.cos(PITCH_RAD);
+            };
+
+            [-1.500, 1.500].forEach((x, idx) => {
+                const sideStr = idx === 0 ? 'Nyugati' : 'Keleti';
+                // Keep brace in the exact X plane of the leg & rafter (or directly adjacent to its side web)
+                const xBrace = x;
+
+                // #1 & #3: South Leg -> Rafter (rises UP and NORTH along the 25° rafter!)
+                const zSouthBraceTop = GEO.zSouth - 0.36; // Z = +0.89 m (360 mm North of South leg)
+                const ySouthBraceTop = getRafterBottomY(zSouthBraceTop); // ~2.30 m (on the rising rafter!)
+                const ySouthBraceBot = Y_PIVOT_SOUTH - 0.34; // ~1.81 m on the South leg (~600 mm brace length)
+
+                addKneeBrace(
+                    new THREE.Vector3(xBrace, ySouthBraceBot, GEO.zSouth - GEO.cSize),
+                    new THREE.Vector3(xBrace, ySouthBraceTop, zSouthBraceTop),
+                    `É-D Karpánt #${idx * 2 + 1} (${sideStr} Déli láb -> Szarufa)`,
+                    'Nyitott csatorna oldalra néz; alul a déli lábhoz, felül-északon pontosan a 25°-ban emelkedő szarufa aljához csatlakozik.',
+                    new THREE.Vector3(idx === 0 ? 0.12 : -0.12, -0.05, 0)
+                );
+
+                // #2 & #4: North Leg -> Rafter (connects from North leg to the descending 25° rafter)
+                const zNorthBraceTop = GEO.zNorth + 0.44; // Z = -0.81 m (440 mm South of North leg)
+                const yNorthBraceTop = getRafterBottomY(zNorthBraceTop); // ~3.10 m on the rafter underside
+                const yNorthBraceBot = yNorthBraceTop - 0.42; // ~2.68 m on the North leg (~600 mm brace length)
+
+                addKneeBrace(
+                    new THREE.Vector3(xBrace, yNorthBraceBot, GEO.zNorth - GEO.cSize),
+                    new THREE.Vector3(xBrace, yNorthBraceTop, zNorthBraceTop),
+                    `É-D Karpánt #${idx * 2 + 2} (${sideStr} Északi láb -> Szarufa)`,
+                    'Nyitott csatorna oldalra néz; alul az északi lábhoz, felül-délen pontosan a 25°-os szarufa aljához csatlakozik.',
+                    new THREE.Vector3(idx === 0 ? 0.12 : -0.12, -0.05, 0)
+                );
+            });
+
+            beamRows.forEach((bRow, rIdx) => {
+                const rowStr = rIdx === 0 ? 'Déli' : 'Északi';
+                addKneeBrace(
+                    new THREE.Vector3(-1.500, bRow.y - 0.42, bRow.z),
+                    new THREE.Vector3(-1.080, bRow.y, bRow.z),
+                    `K-Ny Karpánt #${rIdx * 2 + 5} (${rowStr} Nyugati láb -> Vízszintes összekötő)`,
+                    'Nyitott csatorna DÉL (+Z) felé néz.',
+                    new THREE.Vector3(0, -0.08, -0.12)
+                );
+                addKneeBrace(
+                    new THREE.Vector3(1.500, bRow.y - 0.42, bRow.z),
+                    new THREE.Vector3(1.080, bRow.y, bRow.z),
+                    `K-Ny Karpánt #${rIdx * 2 + 6} (${rowStr} Keleti láb -> Vízszintes összekötő)`,
+                    'Nyitott csatorna DÉL (+Z) felé néz.',
+                    new THREE.Vector3(0, -0.08, -0.12)
+                );
+            });
+        }
+
+        // ============================================================================
+        // 3B. OPTIONAL GROUND-TO-ROOF OSB-3 WALLS (WEST SOLID, NORTH WITH WINDOW, EAST OPEN ENTRANCE)
+        // ============================================================================
+        function createOSBMaterial() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#c59b61';
+            ctx.fillRect(0, 0, 256, 256);
+
+            const flakeColors = ['#d8b27c', '#b3864c', '#9e7139', '#e0be8b', '#8c622e'];
+            for (let i = 0; i < 850; i++) {
+                ctx.save();
+                ctx.translate(Math.random() * 256, Math.random() * 256);
+                ctx.rotate((Math.random() - 0.5) * 1.4);
+                ctx.fillStyle = flakeColors[i % flakeColors.length];
+                ctx.fillRect(-10, -3, 14 + Math.random() * 16, 3 + Math.random() * 5);
+                ctx.restore();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+
+            return new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.78,
+                metalness: 0.05,
+                side: THREE.DoubleSide
+            });
+        }
+
+        function buildOSBCladdingAndWindows() {
+            const osbMat = createOSBMaterial();
+            const winFrameMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.5 });
+            const glassMat = new THREE.MeshPhysicalMaterial({
+                color: 0xbae6fd,
+                transparent: true,
+                opacity: 0.46,
+                roughness: 0.1,
+                metalness: 0.1,
+                side: THREE.DoubleSide
+            });
+            const hingeMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.2 });
+            const osbThick = 0.018; // 18 mm OSB-3
+
+            const zN = GEO.zNorth; // -1.250 m
+            const zS = GEO.zSouth; // +1.250 m
+
+            // Exact 15-degree sloped ground surface Y(z): at Z=+1.25m -> Y=0.00m, at Z=-1.25m -> Y=+0.67m
+            const yGroundAtZ = (z) => (1.250 - z) * Math.tan(SLOPE_RAD);
+            // Exact 25-degree rafter underside Y(z): at Z=+1.25m -> Y=2.150m, at Z=-1.25m -> Y=3.316m
+            const yRoofAtZ = (z) => Y_PIVOT_SOUTH + (1.250 - z) * ((Y_PIVOT_NORTH - Y_PIVOT_SOUTH) / 2.500);
+
+            // ========================================================================
+            // 1. WEST WALL (X = -1500 mm): SOLID, FULL GROUND-TO-ROOF OSB-3 WALL
+            //    NO window facing the neighbor's black wall! Reaches all the way to the 15° ground!
+            // ========================================================================
+            const westGroup = new THREE.Group();
+            const xWestPlane = -1.500 - GEO.cSize - osbThick / 2;
+            const westExplode = new THREE.Vector3(-0.35, 0, 0);
+
+            // Horizontal Unistrut 41x41 mounting girts along the West wall (including sloped bottom ground sill!)
+            [
+                { name: 'Nyugati Alsó Terep-Követő C-Profil Küszöbborda (15°)', yN: yGroundAtZ(zN) + 0.03, yS: yGroundAtZ(zS) + 0.03 },
+                { name: 'Nyugati Középső Vízszintes C-Profil Segédborda', yN: 1.850, yS: 1.350 }
+            ].forEach(girt => {
+                const p1 = new THREE.Vector3(xWestPlane + osbThick / 2 + GEO.cSize / 2, girt.yN, zN);
+                const p2 = new THREE.Vector3(xWestPlane + osbThick / 2 + GEO.cSize / 2, girt.yS, zS);
+                const gVec = p2.clone().sub(p1);
+                const gLen = gVec.length();
+
+                const girtMeta = {
+                    category: '3. Opcionális OSB-3 Oldalfal Segédborda (Nyugat)',
+                    title: girt.name,
+                    dims: `41 x 41 x 2.5 mm C-profil - Hossz: ${Math.round(gLen * 1000)} mm`,
+                    slot: 'Nyitott csatorna (22 mm rés) NYUGAT (-X, kifelé) néz, hogy a földig érő 18 mm-es OSB táblák kívülről M8-as csatornaanyákkal síkban rögzüljenek.',
+                    fasteners: 'Belső 90°-os Unistrut sarokvasak M10 csavarokkal + kívülről M8x35 A2 OSB-rögzítő csavarok.',
+                    notes: 'Az opcionális 3. réteg része (a keleti bejáratnál nincs ilyen borda, így a bejárat teljesen szabad).'
+                };
+
+                const cGirt = createUnistrutCProfile(gLen, girtMeta);
+                cGirt.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), gVec.clone().normalize());
+                cGirt.rotateY(-Math.PI / 2);
+                cGirt.position.copy(p1);
+                westGroup.add(cGirt);
+            });
+
+            // Solid trapezoidal West OSB-3 panel extending from the 15° ground all the way up to the 25° roof
+            const westShape = new THREE.Shape();
+            westShape.moveTo(zN, yGroundAtZ(zN));
+            westShape.lineTo(zS, yGroundAtZ(zS));
+            westShape.lineTo(zS, yRoofAtZ(zS));
+            westShape.lineTo(zN, yRoofAtZ(zN));
+            westShape.closePath();
+
+            const westOsbGeo = new THREE.ExtrudeGeometry(westShape, { depth: osbThick, bevelEnabled: false });
+            westOsbGeo.rotateY(-Math.PI / 2);
+            westOsbGeo.translate(xWestPlane + osbThick / 2, 0, 0);
+
+            const westOsbMeta = {
+                category: '3. Opcionális OSB-3 Oldalfal (Nyugati Zárt Fal)',
+                title: 'Nyugati Teljes Magasságú, Földig Érő Zárt OSB-3 Oldalfal (Ablak nélkül)',
+                dims: '2500 mm széles x 18 mm vastag - Alul a 15°-os terepig (Y=0..670 mm), felül a 25°-os szarufáig (Y=2150..3316 mm) ér',
+                slot: 'A nyugati lábak és segédbordák NYUGAT (-X) felé néző nyitott csatornáira fekszik fel.',
+                fasteners: '16x M8x35 A2 rozsdamentes lencsefejű csavar + EPDM tömítőalátét + M8 rugós csatornaanya.',
+                notes: 'Mivel közvetlenül a szomszéd fekete fala mellett áll, teljesen zárt (nincs rajta ablak), és egészen a talajig leér.'
+            };
+
+            const westOsbMesh = new THREE.Mesh(westOsbGeo, osbMat);
+            westOsbMesh.castShadow = true;
+            westOsbMesh.receiveShadow = true;
+            registerSelectable(westOsbMesh, westOsbMeta);
+            westGroup.add(westOsbMesh);
+
+            // M8x35 facade screws along the solid West OSB wall
+            const westScrewCoords = [
+                [zN + 0.02, 0.85], [zN + 0.02, 1.65], [zN + 0.02, 2.45], [zN + 0.02, 3.15],
+                [zS - 0.02, 0.20], [zS - 0.02, 0.90], [zS - 0.02, 1.50], [zS - 0.02, 2.02],
+                [-0.45, yGroundAtZ(-0.45) + 0.03], [0.45, yGroundAtZ(0.45) + 0.03],
+                [-0.45, 1.69], [0.45, 1.51]
+            ];
+            westScrewCoords.forEach(([sz, sy], sIdx) => {
+                const screwMeta = {
+                    category: '5. OSB Rögzítő Kötőelem (M8x35 + Csatornaanya)',
+                    title: `Nyugati Zárt OSB-3 Fal Rögzítő Csavar (#${sIdx + 1})`,
+                    dims: 'M8x35 ISO 7380 A2 lencsefejű imbuszcsavar + EPDM alátét + M8 rugós csatornaanya',
+                    slot: 'A kifelé (-X) néző C-profil résében ülő M8-as csatornaanyába húz.',
+                    fasteners: 'M8x35 A2 + EPDM gumis alátét + M8 Unistrut csatornaanya',
+                    notes: 'Oldható, síkban fekvő burkolatrögzítés.'
+                };
+                const sCluster = createM10FastenerCluster(screwMeta);
+                sCluster.scale.set(0.85, 0.85, 0.85);
+                sCluster.position.set(xWestPlane - 0.010, sy, sz);
+                sCluster.rotation.y = -Math.PI / 2;
+                westGroup.add(sCluster);
+            });
+
+            registerExplode(westGroup, westExplode);
+            layerGroups.osb.add(westGroup);
+
+            // ========================================================================
+            // 2. EAST SIDE (X = +1500 mm): COMPLETELY OPEN ENTRANCE!
+            //    No OSB wall and no window blocking the East entrance!
+            // ========================================================================
+
+            // ========================================================================
+            // 3. NORTH BACK WALL (Z = -1250 mm): GROUND-TO-ROOF OSB-3 WALL WITH
+            //    4-LEAF BI-FOLD & TILTING WINDOW IN THE UPPER SECTION
+            // ========================================================================
+            const northWallGroup = new THREE.Group();
+            const yNorthGround = yGroundAtZ(zN); // 0.670 m (reaches all the way down to the northern ground level!)
+            const yNorthTop = Y_PIVOT_NORTH - 0.02; // 3.296 m
+            const zNorthPlane = GEO.zNorth - GEO.cSize - osbThick / 2;
+            const northWidth = 3.082; // X from -1.541 m to +1.541 m
+
+            // Window cutout on the upper North wall (1800 mm wide x 820 mm high)
+            const winX1 = -0.900;
+            const winX2 =  0.900;
+            const winY1 =  2.120;
+            const winY2 =  2.940;
+
+            // Horizontal Unistrut girts on North wall (ground sill + window sill + window header), open slot facing NORTH (-Z)
+            [
+                { name: 'Északi Alsó Talaj-Küszöb C-Profil Borda (3000 mm)', yPos: yNorthGround + 0.03 },
+                { name: 'Északi Ablakpárkány C-Profil Borda (3000 mm)', yPos: winY1 - 0.02 },
+                { name: 'Északi Ablakáthidaló C-Profil Borda (3000 mm)', yPos: winY2 + 0.02 }
+            ].forEach(nGirt => {
+                const nGirtMeta = {
+                    category: '3. Opcionális Hátsó Fal Segédborda (Unistrut 41x41)',
+                    title: nGirt.name,
+                    dims: '41 x 41 x 2.5 mm C-profil - Hossz: 3000 mm',
+                    slot: 'Nyitott csatorna (22 mm rés) ÉSZAK (-Z, kifelé) néz a földig érő hátsó OSB fal és az ablakkeret rögzítéséhez.',
+                    fasteners: '3x belső 90°-os sarokvas a 3 északi lábnál + kívülről M8x35 OSB csavarok.',
+                    notes: `Magasság: Y = ${Math.round(nGirt.yPos * 1000)} mm.`
+                };
+                const nGirtWrapper = new THREE.Group();
+                const cNGirt = createUnistrutCProfile(3.000, nGirtMeta);
+                cNGirt.rotation.z = -Math.PI / 2;
+                cNGirt.rotation.x = Math.PI; // Open slot faces North (-Z)
+                nGirtWrapper.add(cNGirt);
+                nGirtWrapper.position.set(-1.500, nGirt.yPos, GEO.zNorth - GEO.cSize / 2);
+                northWallGroup.add(nGirtWrapper);
+            });
+
+            // North Wall OSB-3 Shape extending from ground (Y = 0.670 m) to roof (Y = 3.296 m) with Window Hole
+            const northShape = new THREE.Shape();
+            northShape.moveTo(-northWidth / 2, yNorthGround);
+            northShape.lineTo( northWidth / 2, yNorthGround);
+            northShape.lineTo( northWidth / 2, yNorthTop);
+            northShape.lineTo(-northWidth / 2, yNorthTop);
+            northShape.closePath();
+
+            const northWinHole = new THREE.Path();
+            northWinHole.moveTo(winX1, winY1);
+            northWinHole.lineTo(winX2, winY1);
+            northWinHole.lineTo(winX2, winY2);
+            northWinHole.lineTo(winX1, winY2);
+            northWinHole.closePath();
+            northShape.holes.push(northWinHole);
+
+            const northOsbGeo = new THREE.ExtrudeGeometry(northShape, { depth: osbThick, bevelEnabled: false });
+            northOsbGeo.translate(0, 0, zNorthPlane - osbThick / 2);
+
+            const nOsbMesh = new THREE.Mesh(northOsbGeo, osbMat);
+            nOsbMesh.castShadow = true;
+            nOsbMesh.receiveShadow = true;
+            registerSelectable(nOsbMesh, {
+                category: '3. Opcionális OSB-3 Hátsó Fal Burkolat (18 mm)',
+                title: 'Északi (Hátsó) Földig Érő OSB-3 Falburkolat Nyitható Ablakkal',
+                dims: `3082 x ${Math.round((yNorthTop - yNorthGround) * 1000)} x 18 mm (Alul a Y=+670 mm-es talajig ér!)`,
+                slot: 'Az északi C-profilok ÉSZAK (-Z) felé néző nyitott csatornájába csavarozva.',
+                fasteners: '16x M8x35 A2 csavar + EPDM alátét + M8 rugós csatornaanya.',
+                notes: 'Egészen a 15°-os lejtő északi talajszintjéig (Y=670 mm) leér, felső részén pedig 1800x820 mm-es összecsukható/bukó ablak található.'
+            });
+            northWallGroup.add(nOsbMesh);
+
+            // --- INTERACTIVE 4-LEAF BI-FOLD & TILTING WINDOW ON THE NORTH WALL ---
+            const winWidth = winX2 - winX1;  // 1.800 m
+            const winHeight = winY2 - winY1; // 0.820 m
+            const frameRoot = new THREE.Group();
+            frameRoot.position.set(winX1, winY1, zNorthPlane);
+
+            const topTiltPivot = new THREE.Group();
+            topTiltPivot.position.set(0, winHeight, 0);
+            frameRoot.add(topTiltPivot);
+
+            const sashW = winWidth / 4; // 0.450 m per leaf
+            const sashH = winHeight - 0.02;
+
+            const createNorthWindowLeaf = (leafTitle, leafIndex) => {
+                const leafGrp = new THREE.Group();
+                const xCenter = sashW / 2;
+
+                const fTop = new THREE.Mesh(new THREE.BoxGeometry(sashW - 0.004, 0.035, 0.032), winFrameMat);
+                fTop.position.set(xCenter, -0.02, 0);
+                const fBot = new THREE.Mesh(new THREE.BoxGeometry(sashW - 0.004, 0.035, 0.032), winFrameMat);
+                fBot.position.set(xCenter, -sashH + 0.02, 0);
+                const fL = new THREE.Mesh(new THREE.BoxGeometry(0.035, sashH, 0.032), winFrameMat);
+                fL.position.set(0.018, -sashH / 2, 0);
+                const fR = new THREE.Mesh(new THREE.BoxGeometry(0.035, sashH, 0.032), winFrameMat);
+                fR.position.set(sashW - 0.018, -sashH / 2, 0);
+
+                const pane = new THREE.Mesh(new THREE.BoxGeometry(sashW - 0.06, sashH - 0.06, 0.010), glassMat);
+                pane.position.set(xCenter, -sashH / 2, 0);
+
+                const h1 = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.045, 10), hingeMat);
+                h1.position.set(0.004, -0.14, -0.016);
+                const h2 = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.045, 10), hingeMat);
+                h2.position.set(0.004, -sashH + 0.14, -0.016);
+
+                const leafMeta = {
+                    category: '3. Összecsukható és Kinyitható Ablak (Északi Hátsó Fal)',
+                    title: `Északi Fal ${leafTitle} (${leafIndex + 1}/4 szárny)`,
+                    dims: 'Szárny méret: 450 x 800 mm (Teljes ablaknyílás: 1800 x 820 mm)',
+                    slot: 'Az ablakkeret az északi 41x41-es Unistrut C-profil segédbordákba van rögzítve M8-as csatornaanyákkal.',
+                    fasteners: 'Rozsdamentes harmonika-zsanérok + felső bukó-felnyíló pántok + belső békazár.',
+                    notes: 'Nem a szomszéd fekete falára néz, és a keleti bejáratot sem zárja el! A bal oldali csúszkával nyitható/csukható.'
+                };
+
+                [fTop, fBot, fL, fR, pane, h1, h2].forEach(m => {
+                    registerSelectable(m, leafMeta);
+                    leafGrp.add(m);
+                });
+                return leafGrp;
+            };
+
+            // Left Bi-Fold Pair (West side of North window)
+            const sash1Pivot = new THREE.Group();
+            sash1Pivot.position.set(0, 0, 0);
+            sash1Pivot.add(createNorthWindowLeaf('Harmonika Ablakszárny (Nyugati szélső)', 0));
+
+            const sash2Pivot = new THREE.Group();
+            sash2Pivot.position.set(sashW, 0, 0);
+            sash2Pivot.add(createNorthWindowLeaf('Harmonika Ablakszárny (Bal-középső)', 1));
+            sash1Pivot.add(sash2Pivot);
+            topTiltPivot.add(sash1Pivot);
+
+            // Right Bi-Fold Pair (East side of North window)
+            const sash4Pivot = new THREE.Group();
+            sash4Pivot.position.set(winWidth, 0, 0);
+            const sash4Leaf = createNorthWindowLeaf('Harmonika Ablakszárny (Keleti szélső)', 3);
+            sash4Leaf.position.x = -sashW;
+            sash4Pivot.add(sash4Leaf);
+
+            const sash3Pivot = new THREE.Group();
+            sash3Pivot.position.set(-sashW, 0, 0);
+            const sash3Leaf = createNorthWindowLeaf('Harmonika Ablakszárny (Jobb-középső)', 2);
+            sash3Leaf.position.x = -sashW;
+            sash3Pivot.add(sash3Leaf);
+            sash4Pivot.add(sash3Pivot);
+            topTiltPivot.add(sash4Pivot);
+
+            interactiveWindows.push({
+                isNorthWall: true,
+                topTiltPivot,
+                sash1Pivot,
+                sash2Pivot,
+                sash4Pivot,
+                sash3Pivot
+            });
+
+            northWallGroup.add(frameRoot);
+            registerExplode(northWallGroup, new THREE.Vector3(0, 0, -0.35));
+            layerGroups.osb.add(northWallGroup);
+        }
+
+        function updateWindowAnimation(factor) {
+            interactiveWindows.forEach(win => {
+                win.topTiltPivot.rotation.set(0, 0, 0);
+                win.sash1Pivot.rotation.set(0, 0, 0);
+                win.sash2Pivot.rotation.set(0, 0, 0);
+                win.sash4Pivot.rotation.set(0, 0, 0);
+                win.sash3Pivot.rotation.set(0, 0, 0);
+
+                const foldAngle = factor * THREE.MathUtils.degToRad(78);
+                const tiltAngle = factor * THREE.MathUtils.degToRad(28);
+
+                if (windowOpenMode === 'both' || windowOpenMode === 'bifold') {
+                    // Fold outward toward -Z (North exterior)
+                    win.sash1Pivot.rotation.y =  foldAngle;
+                    win.sash2Pivot.rotation.y = -foldAngle * 1.95;
+                    win.sash4Pivot.rotation.y = -foldAngle;
+                    win.sash3Pivot.rotation.y =  foldAngle * 1.95;
+                }
+                if (windowOpenMode === 'both' || windowOpenMode === 'tilt') {
+                    // Tilt upward/outward around X axis toward -Z
+                    const tiltFactor = windowOpenMode === 'both' ? tiltAngle * 0.45 : tiltAngle * 1.3;
+                    win.topTiltPivot.rotation.x = tiltFactor;
+                }
+            });
+        }
+
+        function toggleWindowMode() {
+            const modes = ['both', 'bifold', 'tilt'];
+            const labels = {
+                both: 'Harmonika + Bukó',
+                bifold: 'Csak Harmonika',
+                tilt: 'Csak Felnyíló (Bukó)'
+            };
+            windowOpenMode = modes[(modes.indexOf(windowOpenMode) + 1) % modes.length];
+            document.getElementById('window-mode-btn').textContent = labels[windowOpenMode];
+            updateWindowAnimation(parseFloat(document.getElementById('window-slider').value) / 100);
+        }
+
+        // ============================================================================
+        // 4. ALUMINUM RAILS (4x 3500mm) & 12x EPDM ISOLATION PADS + M10 FASTENERS
+        // ============================================================================
+        function buildAluRailsAndEPDM() {
+            const yMid = (Y_PIVOT_NORTH + Y_PIVOT_SOUTH) / 2;
+            const roofPlaneGroup = new THREE.Group();
+            roofPlaneGroup.position.set(0, yMid + 0.025, 0);
+            roofPlaneGroup.rotation.x = PITCH_RAD; // Tilted 25 deg around X
+
+            // 4 Aluminum rail positions along the sloped roof (2 rails under North panel row, 2 under South panel row)
+            const railPositionsAlongSlope = [-1.350, -0.450, 0.450, 1.350];
+
+            railPositionsAlongSlope.forEach((sPos, rIdx) => {
+                const railMeta = {
+                    category: '2. Felső Alusín Rendszer (3500 mm)',
+                    title: `Alumínium Tartósín #${rIdx + 1} (40×40 mm, Kelet-Nyugat)`,
+                    dims: '40 × 40 mm eloxált napelem alusín • Hossz: 3500 mm (X = -1750 .. +1750 mm)',
+                    slot: 'Felső nútja fogadja a napelem leszorítók M8-as kalapácsfejű csavarjait; alsó talpa az EPDM gumialátéten keresztül a szarufára csavarozódik.',
+                    fasteners: '3× M10×30 A2 kalapácsfejű csavar + M10 rugós csatornaanya + 3× fekete EPDM gumialátét.',
+                    notes: 'Keresztezi a 3 db Unistrut szarufát (összesen 12 keresztezési pont).'
+                };
+
+                const railMesh = new THREE.Mesh(new THREE.BoxGeometry(GEO.aluRailLen, 0.040, 0.040), MATS.aluRail);
+                railMesh.position.set(0, 0.041 / 2 + 0.005 + 0.020, sPos);
+                railMesh.castShadow = true;
+                railMesh.receiveShadow = true;
+                registerSelectable(railMesh, railMeta, new THREE.Vector3(0, 0.18, 0));
+                roofPlaneGroup.add(railMesh);
+
+                // 3 Intersections per rail = 12 total Rafter-to-AluRail crossings with black EPDM pad & M10 bolt
+                GEO.colX.forEach((xCol) => {
+                    const epdmMeta = {
+                        category: '5. Csomópont - EPDM Gumialátét és Alusín-Szarufa Rögzítés',
+                        title: `EPDM Galvánkorrózió Gátló Alátét + M10 Rögzítés (Sín #${rIdx + 1}, X=${xCol * 1000})`,
+                        dims: '60 × 60 × 5 mm fekete UV-álló EPDM gumilap + L-adapter / kalapácsfejű csavar',
+                        slot: 'A szarufa FELFELÉ néző 22 mm-es nyitott csatornájába ül be az M10-es rugós csatornaanya.',
+                        fasteners: '1× fekete EPDM alátét + 1× M10×30 A2 csavar + 1× M10 rugós csatornaanya.',
+                        notes: 'Elektromosan elválasztja a horganyzott acél C-profilt és az alumínium sínt (megakadályozza a kontaktkorróziót).'
+                    };
+
+                    // Black EPDM rubber pad between Unistrut rafter top and Alu rail bottom
+                    const epdmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.006, 0.065), MATS.epdmBlack);
+                    epdmMesh.position.set(xCol, 0.041 / 2 + 0.003, sPos);
+                    registerSelectable(epdmMesh, epdmMeta, new THREE.Vector3(0, 0.14, 0));
+                    roofPlaneGroup.add(epdmMesh);
+
+                    // Highlighted M10 fastener + channel nut at intersection
+                    const crossBolt = createM10FastenerCluster(epdmMeta, new THREE.Vector3(0, 0.22, 0));
+                    crossBolt.rotation.x = -Math.PI / 2;
+                    crossBolt.position.set(xCol, 0.041 / 2 + 0.042, sPos);
+                    roofPlaneGroup.add(crossBolt);
+                });
+            });
+
+            layerGroups.rails.add(roofPlaneGroup);
+        }
+
+        // ============================================================================
+        // 5. SOLAR PANELS (6x DAH SOLAR 1762x1134x30), EPDM T-SEALS & 16 CLAMPS
+        // ============================================================================
+        function createSolarPanelTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Deep monocrystalline dark navy/black cell background
+            ctx.fillStyle = '#0a1324';
+            ctx.fillRect(0, 0, 256, 512);
+
+            // Half-cut solar cells grid (6 columns x 18 rows)
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            const cols = 6;
+            const rows = 18;
+            const cw = 256 / cols;
+            const ch = 512 / rows;
+
+            for (let c = 0; c < cols; c++) {
+                for (let r = 0; r < rows; r++) {
+                    ctx.fillStyle = (c + r) % 2 === 0 ? '#0d1b33' : '#091529';
+                    ctx.fillRect(c * cw + 2, r * ch + 2, cw - 4, ch - 4);
+                    // Fine silver busbars
+                    ctx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+                    ctx.fillRect(c * cw + cw * 0.3, r * ch + 2, 1, ch - 4);
+                    ctx.fillRect(c * cw + cw * 0.7, r * ch + 2, 1, ch - 4);
+                }
+            }
+            // Center split line of half-cut module
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(0, 254, 256, 4);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function buildSolarPanelsAndClamps() {
+            const yMid = (Y_PIVOT_NORTH + Y_PIVOT_SOUTH) / 2;
+            const solarGroup = new THREE.Group();
+            solarGroup.position.set(0, yMid + 0.025, 0);
+            solarGroup.rotation.x = PITCH_RAD;
+
+            const clampsGroup = new THREE.Group();
+            clampsGroup.position.set(0, yMid + 0.025, 0);
+            clampsGroup.rotation.x = PITCH_RAD;
+
+            const cellTex = createSolarPanelTexture();
+            const panelFaceMat = new THREE.MeshStandardMaterial({ map: cellTex, metalness: 0.55, roughness: 0.2 });
+            const frameBlackMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6, roughness: 0.35 });
+
+            const yPanelCenter = 0.041 / 2 + 0.005 + 0.040 + GEO.panelT / 2;
+
+            // 2 Rows (North & South) x 3 Columns (West, Center, East) in Portrait layout
+            // Total width = 3 * 1.134 + 2 * 0.020 = 3.442 m
+            // Total slope length = 2 * 1.762 + 1 * 0.020 = 3.544 m
+            const rowOffsets = [
+                -(GEO.panelL / 2 + GEO.panelGap / 2), // North row (-0.891 m)
+                 (GEO.panelL / 2 + GEO.panelGap / 2)  // South row (+0.891 m)
+            ];
+            const colOffsets = [
+                -(GEO.panelW + GEO.panelGap), // West column (-1.154 m)
+                 0.000,                       // Center column (0.0 m)
+                 (GEO.panelW + GEO.panelGap)  // East column (+1.154 m)
+            ];
+
+            rowOffsets.forEach((sRow, rIdx) => {
+                colOffsets.forEach((xCol, cIdx) => {
+                    const pNum = rIdx * 3 + cIdx + 1;
+                    const panelMeta = {
+                        category: '1. Napelemek (DAH Solar Bifaciális Modul)',
+                        title: `DAH Solar Napelem #${pNum} (${rIdx === 0 ? 'Északi' : 'Déli'} sor, ${cIdx + 1}. oszlop)`,
+                        dims: '1762 × 1134 × 30 mm • Fekete eloxált keret • 20 mm rés a panelek között',
+                        slot: 'Portrait (álló) elrendezés 25°-os dőlésszöggel Dél felé.',
+                        fasteners: '4 ponton rögzítve a 40×40-es alusínekhez fekete köztes és végleszorítókkal (M8 imbuszcsavar + kalapácsfejű anya).',
+                        notes: 'A 20 mm-es dilatációs és szerelési résekben fekete EPDM T-profilos gumitömítés biztosítja a vízzárást.'
+                    };
+
+                    const pGrp = new THREE.Group();
+                    // Black anodized frame
+                    const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(GEO.panelW, GEO.panelT, GEO.panelL), frameBlackMat);
+                    frameMesh.castShadow = true;
+                    frameMesh.receiveShadow = true;
+                    registerSelectable(frameMesh, panelMeta);
+                    pGrp.add(frameMesh);
+
+                    // Solar glass surface
+                    const glassMesh = new THREE.Mesh(new THREE.BoxGeometry(GEO.panelW - 0.024, GEO.panelT + 0.002, GEO.panelL - 0.024), panelFaceMat);
+                    registerSelectable(glassMesh, panelMeta);
+                    pGrp.add(glassMesh);
+
+                    pGrp.position.set(xCol, yPanelCenter, sRow);
+                    registerExplode(pGrp, new THREE.Vector3(0, 0.36, 0));
+                    solarGroup.add(pGrp);
+                });
+            });
+
+            // Black T-profile EPDM Water-Sealing Rubber Strips in the 20 mm gaps between panels
+            const tSealMeta = {
+                category: '1. Vízzárás - EPDM T-Profilos Gumitömítés',
+                title: 'Fekete T-Profilos EPDM Vízzáró Gumitömítés (20 mm-es résekben)',
+                dims: 'Szélesség: 36 mm (fedés) / 20 mm (szár) • UV- és időjárásálló EPDM gumi',
+                slot: 'Felülről fedi és tömíti a napelemek közötti 20 mm-es hosszanti és keresztirányú réseket.',
+                fasteners: 'Önfeszítő bordás szárral illeszkedik a 30 mm-es napelemkeretek közé.',
+                notes: 'Megakadályozza, hogy az esővíz a panelek között a motorbeálló alá csöpögjön.'
+            };
+
+            // 2 longitudinal N-S T-seals (at X = -0.577 m and +0.577 m, length = 3544 mm)
+            [-0.577, 0.577].forEach(xSeal => {
+                const nsSeal = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.034, 3.544), MATS.epdmBlack);
+                nsSeal.position.set(xSeal, yPanelCenter + 0.003, 0);
+                registerSelectable(nsSeal, tSealMeta, new THREE.Vector3(0, 0.42, 0));
+                solarGroup.add(nsSeal);
+            });
+
+            // 1 transverse E-W T-seal between North and South panel rows (at S = 0, length = 3442 mm)
+            const ewSeal = new THREE.Mesh(new THREE.BoxGeometry(3.442, 0.034, 0.034), MATS.epdmBlack);
+            ewSeal.position.set(0, yPanelCenter + 0.003, 0);
+            registerSelectable(ewSeal, tSealMeta, new THREE.Vector3(0, 0.42, 0));
+            solarGroup.add(ewSeal);
+
+            // 8x Black End Clamps (Végleszorító) + 8x Black Mid Clamps (Köztes leszorító) along the 4 Alu Rails
+            const railPositionsAlongSlope = [-1.350, -0.450, 0.450, 1.350];
+            const endClampX = [-1.735, 1.735];
+            const midClampX = [-0.577, 0.577];
+
+            railPositionsAlongSlope.forEach((sRail, rIdx) => {
+                // 2 End clamps per rail = 8 total
+                endClampX.forEach((xEnd, eIdx) => {
+                    const endMeta = {
+                        category: '2. Napelem Leszorítók (8 db Végleszorító)',
+                        title: `Fekete Alumínium Végleszorító (Sín #${rIdx + 1}, ${eIdx === 0 ? 'Nyugati' : 'Keleti'} szél)`,
+                        dims: '30 mm-es modulkerethez • Hossz: 50 mm • Fekete eloxált alumínium',
+                        slot: 'Az alusín felső horonycsatornájába csavarozódik.',
+                        fasteners: '1× M8×35 DIN 912 A2 belsőkulcsnyílású csavar + 1× M8 kalapácsfejű horonyanya',
+                        notes: 'Összesen 8 db végleszorító a 4 szál alusín két-két végén.'
+                    };
+                    const cMesh = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.038, 0.050), MATS.clampBlack);
+                    cMesh.position.set(xEnd, yPanelCenter + 0.005, sRail);
+                    registerSelectable(cMesh, endMeta, new THREE.Vector3(0, 0.28, 0));
+                    clampsGroup.add(cMesh);
+                });
+
+                // 2 Mid clamps per rail = 8 total
+                midClampX.forEach((xMid, mIdx) => {
+                    const midMeta = {
+                        category: '2. Napelem Leszorítók (8 db Köztes Leszorító)',
+                        title: `Fekete Alumínium Köztes Leszorító (Sín #${rIdx + 1}, #${mIdx + 1})`,
+                        dims: '20 mm-es modulréshez, 30 mm-es keretmagassághoz • 50 mm hosszú',
+                        slot: 'Egyszerre két szomszédos DAH Solar napelem keretét szorítja le az alusínre.',
+                        fasteners: '1× M8×40 DIN 912 A2 imbuszcsavar + 1× M8 horonyanya',
+                        notes: 'Összesen 8 db köztes leszorító a 4 szál alusínen.'
+                    };
+                    const mMesh = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.038, 0.050), MATS.clampBlack);
+                    mMesh.position.set(xMid, yPanelCenter + 0.006, sRail);
+                    registerSelectable(mMesh, midMeta, new THREE.Vector3(0, 0.28, 0));
+                    clampsGroup.add(mMesh);
+                });
+            });
+
+            layerGroups.panels.add(solarGroup);
+            layerGroups.rails.add(clampsGroup);
+        }
+
+        // ============================================================================
+        // 6. 3D DIMENSION LINES & FLOATING HTML CALLOUT LABELS
+        // ============================================================================
+        function buildDimensionCallouts() {
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8 });
+
+            const addDimLine = (p1, p2, labelText, isCompass = false) => {
+                const pts = [p1, p2];
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                const line = new THREE.Line(geo, lineMat);
+                layerGroups.dims.add(line);
+
+                const mid = p1.clone().add(p2).multiplyScalar(0.5);
+                addFloatingLabel(mid, labelText, isCompass);
+            };
+
+            // East-West Leg Spacing: 2 x 1500 mm = 3000 mm
+            addDimLine(new THREE.Vector3(-1.5, 0.12, 1.55), new THREE.Vector3(0.0, 0.12, 1.55), '1500 mm (K-Ny lábtáv)');
+            addDimLine(new THREE.Vector3(0.0, 0.12, 1.55), new THREE.Vector3(1.5, 0.12, 1.55), '1500 mm (Össz: 3000 mm)');
+
+            // North-South Leg Span: 2500 mm horizontal, 15 deg slope (+670 mm)
+            addDimLine(new THREE.Vector3(1.85, 0.05, 1.25), new THREE.Vector3(1.85, 0.72, -1.25), 'É-D lábtáv: 2500 mm | Lejtő: 15° (+670 mm)');
+
+            // South Leg Height (2100 mm) & North Leg Height (2596 mm -> Y=3266 mm)
+            addDimLine(new THREE.Vector3(1.75, 0.05, 1.25), new THREE.Vector3(1.75, Y_PIVOT_SOUTH, 1.25), 'Déli láb: 2100 mm');
+            addDimLine(new THREE.Vector3(1.75, 0.72, -1.25), new THREE.Vector3(1.75, Y_PIVOT_NORTH, -1.25), 'Északi láb: 2596 mm (Y=+3266 mm)');
+
+            // Roof Pitch 25° & Rafter 3600 mm
+            addFloatingLabel(new THREE.Vector3(0, 3.05, 0), 'Tetődőlés: 25.0° | Szarufa: 3600 mm (3000+600)', false);
+
+            // Compass Directions
+            addFloatingLabel(new THREE.Vector3(0, 0.95, -2.15), '⬆️ ÉSZAK (Z = -1250 mm, Magasabb oldal +670 mm)', true);
+            addFloatingLabel(new THREE.Vector3(0, 0.05, 2.25), '⬇️ DÉL (Z = +1250 mm, Alacsonyabb bejárat 0 mm)', true);
+            addFloatingLabel(new THREE.Vector3(-2.35, 0.45, 0), '⬅️ NYUGAT (Fekete épület)', true);
+            addFloatingLabel(new THREE.Vector3(2.35, 0.45, 0), '➡️ KELET', true);
+        }
+
+        function addFloatingLabel(worldPos, text, isCompass = false) {
+            const container = document.getElementById('labels-container');
+            const div = document.createElement('div');
+            div.className = 'cad-label' + (isCompass ? ' compass' : '');
+            div.textContent = text;
+            container.appendChild(div);
+            labelItems.push({ pos: worldPos.clone(), element: div });
+        }
+
+        function updateFloatingLabels() {
+            const showDims = document.getElementById('layer-dims').checked;
+            if (!showDims) return;
+
+            const halfW = window.innerWidth / 2;
+            const halfH = window.innerHeight / 2;
+
+            labelItems.forEach(item => {
+                const projected = item.pos.clone().project(camera);
+                if (projected.z > 1) {
+                    item.element.style.display = 'none';
+                } else {
+                    const x = (projected.x * halfW) + halfW;
+                    const y = -(projected.y * halfH) + halfH;
+                    item.element.style.display = 'block';
+                    item.element.style.left = `${x}px`;
+                    item.element.style.top = `${y}px`;
+                }
+            });
+        }
+
+        // ============================================================================
+        // 7. INTERACTION: RAYCASTING CLICK INSPECTOR, SLIDERS & CAMERA PRESETS
+        // ============================================================================
+        function setupInteraction() {
+            let pointerDownPos = { x: 0, y: 0 };
+            const domElem = renderer.domElement;
+
+            domElem.addEventListener('pointerdown', (e) => {
+                pointerDownPos.x = e.clientX;
+                pointerDownPos.y = e.clientY;
+            });
+
+            domElem.addEventListener('pointerup', (e) => {
+                const dx = e.clientX - pointerDownPos.x;
+                const dy = e.clientY - pointerDownPos.y;
+                if (Math.hypot(dx, dy) < 5) {
+                    handleCanvasClick(e);
+                }
+            });
+
+            // Exploded View Slider
+            const explodeSlider = document.getElementById('explode-slider');
+            const explodeVal = document.getElementById('explode-val');
+            explodeSlider.addEventListener('input', (e) => {
+                const factor = parseFloat(e.target.value) / 100;
+                explodeVal.textContent = `${e.target.value}%`;
+                explodeItems.forEach(item => {
+                    item.object.position.copy(item.basePos).addScaledVector(item.explodeVec, factor);
+                });
+            });
+
+            // Window Open/Fold Slider
+            const winSlider = document.getElementById('window-slider');
+            const winVal = document.getElementById('window-val');
+            winSlider.addEventListener('input', (e) => {
+                // Automatically enable the optional OSB layer if the user adjusts the window slider
+                const osbCheckbox = document.getElementById('layer-osb');
+                if (osbCheckbox && !osbCheckbox.checked) {
+                    osbCheckbox.checked = true;
+                    updateLayers();
+                }
+                const factor = parseFloat(e.target.value) / 100;
+                winVal.textContent = `${e.target.value}%`;
+                updateWindowAnimation(factor);
+            });
+        }
+
+        function handleCanvasClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // Filter only visible meshes
+            const visibleTargets = selectableMeshes.filter(m => {
+                let p = m;
+                while (p) {
+                    if (p.visible === false) return false;
+                    p = p.parent;
+                }
+                return true;
+            });
+
+            const intersects = raycaster.intersectObjects(visibleTargets, false);
+            if (intersects.length > 0) {
+                selectPart(intersects[0].object);
+            }
+        }
+
+        function selectPart(mesh) {
+            clearSelection();
+            selectedMesh = mesh;
+            selectedMesh.userData.origMat = selectedMesh.material;
+            selectedMesh.material = MATS.highlight;
+
+            const meta = mesh.userData.meta;
+            if (meta) {
+                // Ensure Inspector window is expanded when a part is clicked
+                const inspBody = document.getElementById('inspector-body');
+                const rightBtn = document.getElementById('right-toggle-btn');
+                if (inspBody && inspBody.classList.contains('hidden')) {
+                    inspBody.classList.remove('hidden');
+                    if (rightBtn) rightBtn.textContent = '−';
+                }
+
+                document.getElementById('insp-category').textContent = meta.category || 'Elem Információ';
+                document.getElementById('insp-title').textContent = meta.title || '-';
+                document.getElementById('insp-dims').textContent = meta.dims || '-';
+                document.getElementById('insp-slot').textContent = meta.slot || '-';
+                document.getElementById('insp-fasteners').textContent = meta.fasteners || '-';
+                document.getElementById('insp-notes').textContent = meta.notes || '-';
+            }
+        }
+
+        function clearSelection() {
+            if (selectedMesh && selectedMesh.userData.origMat) {
+                selectedMesh.material = selectedMesh.userData.origMat;
+            }
+            selectedMesh = null;
+        }
+
+        function updateLayers() {
+            layerGroups.panels.visible = document.getElementById('layer-panels').checked;
+            layerGroups.rails.visible = document.getElementById('layer-rails').checked;
+            layerGroups.osb.visible = document.getElementById('layer-osb').checked;
+            layerGroups.unistrut.visible = document.getElementById('layer-unistrut').checked;
+            layerGroups.fasteners.visible = document.getElementById('layer-fasteners').checked;
+            layerGroups.foundation.visible = document.getElementById('layer-foundation').checked;
+            layerGroups.context.visible = document.getElementById('layer-context').checked;
+
+            const showDims = document.getElementById('layer-dims').checked;
+            layerGroups.dims.visible = showDims;
+            document.getElementById('labels-container').style.display = showDims ? 'block' : 'none';
+        }
+
+        function setCameraPreset(presetName) {
+            camAnim.startPos.copy(camera.position);
+            camAnim.startTarget.copy(controls.target);
+            camAnim.progress = 0;
+            camAnim.active = true;
+
+            switch (presetName) {
+                case 'overview':
+                    camAnim.endPos.set(4.3, 2.9, 4.9);
+                    camAnim.endTarget.set(0.0, 1.75, 0.0);
+                    break;
+                case 'photo':
+                    camAnim.endPos.set(1.65, 1.75, 4.85);
+                    camAnim.endTarget.set(-0.35, 1.65, -0.20);
+                    break;
+                case 'osb_window':
+                    // Automatically turn ON the optional OSB walls when inspecting the OSB & Window preset
+                    const osbChk = document.getElementById('layer-osb');
+                    if (osbChk && !osbChk.checked) {
+                        osbChk.checked = true;
+                        updateLayers();
+                    }
+                    camAnim.endPos.set(2.35, 2.55, -3.25);
+                    camAnim.endTarget.set(0.0, 2.25, -1.25);
+                    break;
+                case 'joint25':
+                    camAnim.endPos.set(2.15, 2.25, 1.65);
+                    camAnim.endTarget.set(1.50, 2.15, 1.25);
+                    break;
+                case 'overlap':
+                    camAnim.endPos.set(2.10, 1.15, 1.65);
+                    camAnim.endTarget.set(1.50, 1.00, 1.25);
+                    break;
+                case 'epdm':
+                    camAnim.endPos.set(1.95, 2.48, 0.85);
+                    camAnim.endTarget.set(1.50, 2.42, 0.45);
+                    break;
+            }
+        }
+
+        // ============================================================================
+        // MAIN ANIMATION LOOP & WINDOW ONLOAD BOOTSTRAP
+        // ============================================================================
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (camAnim.active) {
+                camAnim.progress += 0.045;
+                if (camAnim.progress >= 1) {
+                    camAnim.progress = 1;
+                    camAnim.active = false;
+                }
+                const t = 1 - Math.pow(1 - camAnim.progress, 3); // Cubic ease-out
+                camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, t);
+                controls.target.lerpVectors(camAnim.startTarget, camAnim.endTarget, t);
+            }
+
+            controls.update();
+            updateFloatingLabels();
+            renderer.render(scene, camera);
+        }
+
+        function initApp() {
+            initScene();
+            buildEnvironmentAndTerrain();
+            buildFoundationsAndLegs();
+            buildRoofRaftersAndJoints();
+            buildOSBCladdingAndWindows();
+            buildAluRailsAndEPDM();
+            buildSolarPanelsAndClamps();
+            buildDimensionCallouts();
+            setupInteraction();
+            updateWindowAnimation(0.45);
+            animate();
+        }
+
+        if (document.readyState === 'complete') {
+            initApp();
+        } else {
+            window.addEventListener('load', initApp);
+        }
+    </script>
+</body>
+</html>
